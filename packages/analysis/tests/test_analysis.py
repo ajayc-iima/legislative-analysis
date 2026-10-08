@@ -73,6 +73,17 @@ def test_data_notes_flag_duplicates_and_missing_subject():
     assert "no subject" in notes
 
 
+def test_mla_trailing_punctuation_folds():
+    rows = [
+        {"Departments": "Power Department", "Asked_By": "Process T. Sawkmie", "Subject": "Load shedding"},
+        {"Departments": "Power Department", "Asked_By": "Process T. Sawkmie,", "Subject": "Coal mining"},
+    ]
+    stats = analyze(rows)
+    assert stats["overview"]["mlas"] == 1
+    assert stats["mlas"][0]["mla"] == "Process T. Sawkmie"
+    assert stats["mlas"][0]["questions"] == 2
+
+
 def test_parse_date_formats():
     assert parse_date("15/Oct/2025").year == 2025
     assert parse_date("15-Oct-25").month == 10

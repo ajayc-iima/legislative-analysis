@@ -77,6 +77,12 @@ def canonical_departments(keys):
     return canonical
 
 
+def normalize_mla(name):
+    """Collapse portal typo variants ('Process T. Sawkmie,' -> 'Process T. Sawkmie')."""
+    text = re.sub(r"\s+", " ", str(name or "").strip())
+    return re.sub(r"[\s,.;]+$", "", text) or UNKNOWN
+
+
 def reply_link(row):
     for column in ("Document_Link", "Reply_URL", "Reply"):
         value = str(row.get(column) or "").strip()
@@ -112,6 +118,7 @@ def _coverage(items):
 def analyze(rows, top=TOP_N):
     by_dept, by_mla, by_session = defaultdict(list), defaultdict(list), defaultdict(list)
     dept_names = defaultdict(Counter)
+    mla_names = defaultdict(Counter)
     # Fold variant spellings into one key each before grouping.
     all_keys = {normalize_department(str(row.get("Departments") or "").strip()) for row in rows}
     canonical = canonical_departments(all_keys)
@@ -121,7 +128,8 @@ def analyze(rows, top=TOP_N):
         raw_dept = str(row.get("Departments") or "").strip()
         dept = canonical.get(normalize_department(raw_dept), normalize_department(raw_dept))
         dept_names[dept][raw_dept or UNKNOWN] += 1
-        mla = str(row.get("Asked_By") or "").strip() or UNKNOWN
+        mla = normalize_mla(row.get("Asked_By"))
+        mla_names[mla][str(row.get("Asked_By") or "").strip() or UNKNOWN] += 1
         session = (str(row.get("Assembly") or "").strip() or UNKNOWN,
                    str(row.get("Session") or "").strip() or UNKNOWN)
         by_dept[dept].append(row)
@@ -138,6 +146,7 @@ def analyze(rows, top=TOP_N):
     # Most common raw spelling for each normalized department key.
     display = {key: re.sub(r"\s+", " ", counter.most_common(1)[0][0])
                for key, counter in dept_names.items()}
+    mla_display = {key: counter.most_common(1)[0][0] for key, counter in mla_names.items()}
 
     session_rows = []
     for name, items in by_session.items():
@@ -161,14 +170,14 @@ def analyze(rows, top=TOP_N):
 
     dept_rows = [{"department": display[name], "questions": len(items),
                   "sessions": len({str(r.get("Session") or "").strip() for r in items}),
-                  "askers": len({str(r.get("Asked_By") or "").strip() for r in items}),
+                  "askers": len({normalize_mla(r.get("Asked_By")) for r in items}),
                   "coverage": _coverage(items)}
                  for name, items in by_dept.items()]
     dept_rows.sort(key=lambda d: (-d["questions"], d["department"]))
     for entry in dept_rows:
         entry["share"] = round(100 * entry["questions"] / total, 1) if total else 0.0
 
-    mla_rows = [{"mla": name, "questions": len(items),
+    mla_rows = [{"mla": mla_display[name], "questions": len(items),
                  "departments": len({canon_dept(r.get("Departments")) for r in items}),
                  "top_department": display[Counter(canon_dept(r.get("Departments"))
                                                  for r in items).most_common(1)[0][0]]}
@@ -178,7 +187,7 @@ def analyze(rows, top=TOP_N):
     recurring_rows = [{"subject": subject, "sessions": sorted(entry["sessions"]),
                        "occurrences": entry["occurrences"],
                        "departments": {display.get(k, k): v for k, v in entry["departments"].most_common(3)},
-                       "askers": dict(entry["askers"].most_common(3))}
+                       "askers": {mla_display.get(k, k): v for k, v in entry["askers"].most_common(3)}}
                       for subject, entry in recurring.items() if len(entry["sessions"]) >= 2]
     recurring_rows.sort(key=lambda r: (-len(r["sessions"]), -r["occurrences"], r["subject"]))
 
@@ -190,7 +199,10 @@ def analyze(rows, top=TOP_N):
         data_notes.append(f"{len(missing_subject)} row(s) have no subject in the source data")
     seen, dupes = set(), 0
     for row in rows:
-        key = (str(row.get("Session") or ""), str(row.get("Session_Date") or ""), question_number(row))
+        number = question_number(row)
+        if not number:
+            continue
+        key = (str(row.get("Session") or ""), str(row.get("Session_Date") or ""), number)
         if key in seen:
             dupes += 1
         seen.add(key)
