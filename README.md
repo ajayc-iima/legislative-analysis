@@ -53,3 +53,11 @@ input CSV.
 ```bash
 python -m pytest
 ```
+
+## Validation
+
+`VALIDATION.md` records the scraper audit: 99.58% row agreement against
+the legacy Selenium scrape on shared sessions, live-portal verification
+of every disagreement, and a completeness check against all sessions the
+portal lists for assemblies 10 and 11.
+

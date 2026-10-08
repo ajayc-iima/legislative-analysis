@@ -69,3 +69,19 @@ rather than silently dropping them.
 - The comparison key is (session, date, question number). Rows could in
   principle match on the key while differing in subject text; spot checks
   found identical text wherever compared.
+
+## Completeness audit (portal vs scrape)
+
+Every session the portal lists for assemblies 10 and 11 was checked
+against the scrape (2026-10-08):
+
+| Assembly | Sessions on portal | With scraped questions | Without |
+|---|---|---|---|
+| 11th | 9 | 8 | Special Session, 2023 |
+| 10th | 12 | 7 | Re-Assembled Budget 2020, Autumn 2021, Budget 2020, Special 2018 |
+
+The 5 sessions without questions return "No Records Founds." from the
+portal itself on every sitting date — no questions are published there.
+So the scrape captures 100% of what the portal serves for both
+assemblies.
+
