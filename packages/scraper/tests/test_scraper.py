@@ -1,7 +1,7 @@
 """Tests for session filtering, table parsing, and record building."""
 
 from legislative_scraper.config import COLUMNS
-from legislative_scraper.scraper import build_record, clean_label, matches, parse_table
+from legislative_scraper.scraper import build_record, clean_label, matches, parse_table, scrape
 
 ROW_HTML = (
     "<table><thead><tr><th>Sr No</th><th>Title</th><th>Details</th><th>Category</th>"
@@ -10,6 +10,77 @@ ROW_HTML = (
     "<td>Starred Questions</td><td>Paul Lyngdoh</td><td>Power Department</td><td>Power</td>"
     '<td><a href="https://x/reply.pdf"><img></a></td><td></td></tr></tbody></table>'
 )
+
+
+class FakePortal:
+    """Stands in for client.Portal with canned option lists and pages."""
+
+    def __init__(self, assemblies=(), sessions=(), dates=(), pages=None):
+        self._assemblies = assemblies
+        self._sessions = sessions
+        self._dates = dates
+        self._pages = pages or {}
+        self.fetched = []
+
+    def assemblies(self):
+        return list(self._assemblies)
+
+    def sessions(self, assembly):
+        return list(self._sessions)
+
+    def dates(self, assembly, session):
+        return list(self._dates)
+
+    def get(self, path, **params):
+        self.fetched.append(params)
+        text = self._pages.get(params.get("sesiondatetid"), "")
+
+        class Response:
+            pass
+
+        response = Response()
+        response.text = text
+        return response
+
+
+def test_scrape_walks_assembly_session_date():
+    portal = FakePortal(
+        assemblies=[("11", "Eleventh Meghalaya Legislative Assembly")],
+        sessions=[{"SessionCode": 9, "SessionName": "Autumn Session, 2026."}],
+        dates=[{"SessionDateId": 1882, "SessionDate": "28/Aug/2026"}],
+        pages={"1882": ROW_HTML},
+    )
+    rows = scrape(portal)
+    assert len(rows) == 1
+    assert rows[0]["Assembly"] == "Eleventh Meghalaya Legislative Assembly"
+    assert rows[0]["Session"] == "Autumn Session, 2026"  # trailing dot cleaned
+    assert rows[0]["Document_Link"] == "https://x/reply.pdf"
+    assert portal.fetched[0] == {"AssId": "11", "SessId": "9", "filterType": "0",
+                                 "sesiondatetid": "1882", "searchText": ""}
+
+
+def test_scrape_skips_sessions_outside_targets(monkeypatch):
+    from legislative_scraper import config
+    monkeypatch.setattr(config, "TARGET_SESSIONS", {"Autumn Session, 2026"})
+    portal = FakePortal(
+        assemblies=[("11", "Eleventh")],
+        sessions=[{"SessionCode": 8, "SessionName": "Budget Session, 2026"}],
+        dates=[{"SessionDateId": 1, "SessionDate": "01/Mar/2026"}],
+        pages={"1": ROW_HTML},
+    )
+    rows = scrape(portal, rows=[])
+    assert rows == []
+    assert portal.fetched == []  # never fetched the search page
+
+
+def test_scrape_falls_back_to_all_assemblies_when_filter_misses():
+    portal = FakePortal(
+        assemblies=[("9", "Ninth Meghalaya Legislative Assembly")],
+        sessions=[],  # no sessions -> skipped with a message
+        dates=[],
+    )
+    rows = scrape(portal, rows=[])
+    assert rows == []
 
 
 def test_match_target():
