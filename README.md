@@ -4,13 +4,21 @@ Monorepo for Meghalaya Legislative Assembly (NeVA) data work. Two small,
 stdlib-first packages under `packages/`. Facts only — no composite scores,
 no invented probabilities.
 
+## Setup
+
+Requires Python 3.10+. Only the scraper uses a third-party library
+(`requests`); the analysis package is stdlib-only.
+
+```bash
+pip install -e packages/scraper -e packages/analysis
+```
+
 ## Scraper
 
 Downloads Digital Library questions (assemblies 10 and 11, all sessions)
 into one CSV.
 
 ```bash
-pip install -e packages/scraper
 python -m legislative_scraper [--out PATH]
 ```
 
@@ -25,7 +33,6 @@ Reads a questions CSV (the scraper's output, or the legacy
 coverage, and subjects recurring across sessions.
 
 ```bash
-pip install -e packages/analysis
 python -m legislative_analysis --csv data/dl_questions_raw.csv --out-dir output
 ```
 
@@ -51,6 +58,7 @@ input CSV.
 ## Tests
 
 ```bash
+pip install pytest
 python -m pytest
 ```
 
