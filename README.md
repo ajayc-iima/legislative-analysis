@@ -1,16 +1,16 @@
 # Legislative Analysis
 
-Monorepo for Meghalaya Legislative Assembly (NeVA) data work. Two small,
-stdlib-first packages under `packages/`. Facts only — no composite scores,
-no invented probabilities.
+Monorepo for Meghalaya Legislative Assembly (NeVA) data work. Three small
+packages under `packages/`. Facts only — no composite scores, no invented
+probabilities.
 
 ## Setup
 
-Requires Python 3.10+. Only the scraper uses a third-party library
-(`requests`); the analysis package is stdlib-only.
+Requires Python 3.10+. The analysis package is stdlib-only; the scraper
+and PDF store use `requests`.
 
 ```bash
-pip install -e packages/scraper -e packages/analysis
+pip install -e packages/scraper -e packages/analysis -e packages/pdfs
 ```
 
 ## Scraper
@@ -37,6 +37,43 @@ python -m legislative_analysis --csv data/dl_questions_raw.csv --out-dir output
 ```
 
 Options: `--csv`, `--out-dir`, `--top` (rows per table, default 20).
+
+## Reply PDFs
+
+Stores signed reply PDFs under `data/pdfs/`, one folder per
+assembly/session:
+
+```
+data/pdfs/assembly-11/autumn-session-2026/11_9_S_4037_V1_signed.pdf
+```
+
+Filenames are the portal's own (they already carry assembly/session/
+question/version codes). The layout is a presentation choice — filenames
+alone are unique across the corpus (verified: 0 collisions in 2,246
+rows).
+
+```bash
+# download everything missing (resume-friendly: existing files skipped)
+python -m legislative_pdfs --csv data/dl_questions_raw.csv --out data/pdfs
+
+# pilot: first N per session
+python -m legislative_pdfs --limit 3
+
+# backfill from an existing folder instead of re-downloading (flat or nested)
+python -m legislative_pdfs --copy-from "D:\path\to\old\pdfs"
+```
+
+Notes:
+
+- `--copy-from` matches by basename and is the fast path after migrating
+  from an older store; anything unmatched is reported and can be fetched
+  live afterwards.
+- A file's presence means "stored"; the tool never overwrites. Zero-byte
+  partials are not produced (a download that fails raises before writing).
+- The portal serves anonymous requests; no auth. Downloads pause 0.4 s
+  between files.
+- Don't dedupe by question number: the portal publishes multiple signed
+  versions per question (`_V1`, `_V2`, ...), all distinct documents.
 
 ### Why so small
 
