@@ -61,6 +61,57 @@ def test_parse_document_reads_tool_calls(monkeypatch):
     assert ok and "hello" in text
 
 
+def test_adjudicate_two_of_three_wins():
+    from legislative_extract.consensus import adjudicate
+    readings = [
+        {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
+        {"reader": "vision", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
+        {"reader": "reason", "ok": True, "text": "no dates here", "error": "", "ms": 1},
+    ]
+    verdict = adjudicate("key", readings, {})
+    assert verdict["reply_date"] == "2023-09-14"
+    assert verdict["provenance"] == "consensus"
+
+
+def test_adjudicate_single_vote_goes_to_supervisor(monkeypatch):
+    import legislative_extract.consensus as consensus
+    readings = [
+        {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
+    ]
+    monkeypatch.setattr(consensus, "supervise", lambda *a, **k: {
+        "ok": True, "decision": {"reply_date": "2023-09-14", "submission_date": "",
+                                 "confidence": "medium", "rationale": "x"}, "error": "", "ms": 1})
+    verdict = consensus.adjudicate("key", readings, {})
+    assert verdict["reply_date"] == "2023-09-14"
+    assert verdict["provenance"] == "supervisor"
+
+
+def test_adjudicate_rejects_unsupported_supervisor_pick(monkeypatch):
+    import legislative_extract.consensus as consensus
+    readings = [
+        {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
+    ]
+    monkeypatch.setattr(consensus, "supervise", lambda *a, **k: {
+        "ok": True, "decision": {"reply_date": "2020-01-01", "submission_date": "",
+                                 "confidence": "high", "rationale": "x"}, "error": "", "ms": 1})
+    verdict = consensus.adjudicate("key", readings, {})
+    assert verdict["reply_date"] == ""
+    assert verdict["provenance"] == "supervisor-rejected"
+
+
+def test_adjudicate_drops_implausible_consensus(monkeypatch):
+    import legislative_extract.consensus as consensus
+    readings = [
+        {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2033", "error": "", "ms": 1},
+        {"reader": "vision", "ok": True, "text": "Dated Shillong, the 14th September, 2033", "error": "", "ms": 1},
+    ]
+    monkeypatch.setattr(consensus, "supervise", lambda *a, **k: {
+        "ok": False, "decision": {}, "error": "down", "ms": 1})
+    verdict = consensus.adjudicate("key", readings, {}, sitting_iso="2023-09-16")
+    assert verdict["reply_date"] == ""
+    assert verdict["provenance"] == "unresolved"
+
+
 def test_parse_date_formats():
     assert parse_date("26/02/2024").strftime("%Y-%m-%d") == "2024-02-26"
     assert parse_date("17.08.2026").strftime("%Y-%m-%d") == "2026-08-17"
@@ -68,6 +119,7 @@ def test_parse_date_formats():
     assert parse_date("19.2.2024").strftime("%Y-%m-%d") == "2024-02-19"
     assert parse_date("28/Aug/2026").strftime("%Y-%m-%d") == "2026-08-28"
     assert parse_date("28-Aug-26").strftime("%Y-%m-%d") == "2026-08-28"
+    assert parse_date("2026-08-28").strftime("%Y-%m-%d") == "2026-08-28"
     assert parse_date("32/13/2024") is None
     assert parse_date("") is None
 
@@ -78,6 +130,7 @@ def test_find_dates_handles_ocr_variants():
     assert find_dates("Dated Shillong, the 26th August,2026")[0] == "26 August 2026"
     assert find_dates("Date of Reply is on 28.02.2026")[0] == "28.02.2026"
     assert find_dates("letter (..LB.68/LA/22266 dated 07-08-2026")[1] == "07-08-2026"
+    assert find_dates("Dated, Shillong, the 10th August, 2026")[0] == "10 August 2026"
     assert find_dates("DATE OF REPLY -28.08.2026")[0] == "28.08.2026"
     assert find_dates("Dated Shillong the 21* August, 2026")[0] == "21 August 2026"
     assert find_dates("listed for reply on 2 8 / 0 8 / 2 0 2 6")[0] == ""

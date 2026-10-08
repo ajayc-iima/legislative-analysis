@@ -43,7 +43,7 @@ def squash_spaced_text(text):
 
 REPLY_DATE = [
     re.compile(r"date\s+of\s+(?:reply|discussion)(?:\s+is\s+on)?\s*[-:]?\s*(\d{1,2}[/\-.,]\d{1,2}[/\-.,]\d{2,4})", re.I),
-    re.compile(r"dated\s*:?\s*(?:[A-Za-z]+[;,]?\s+)?(?:the\s+)?(\d{1,2})[a-z\"'*.(]{0,6}\s+([A-Za-z]+),?\s*(\d{4})", re.I),
+    re.compile(r"dated\s*:?,?\s*(?:[A-Za-z]+[;,]?\s+)?(?:the\s+)?(\d{1,2})[a-z\"'*.(]{0,6}\s+([A-Za-z]+),?\s*(\d{4})", re.I),
     re.compile(r"dated\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})", re.I),
 ]
 SUBMISSION_DATE = [
@@ -55,8 +55,14 @@ SUBMISSION_DATE = [
 
 
 def parse_date(value):
-    """Parse 26/02/2024, 17.08.2026, '26th August, 2026', '26 August 2026'."""
+    """Parse 26/02/2024, 17.08.2026, '26th August, 2026', '26 August 2026', ISO."""
     text = str(value or "").strip().replace(",", ".")
+    match = re.match(r"(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$", text)
+    if match:
+        try:
+            return datetime(*map(int, match.groups()))
+        except ValueError:
+            return None
     match = re.match(r"(\d{1,2})[/\-. ](\d{1,2})[/\-. ](\d{2,4})(?![\d.])", text)
     if match:
         day, month, year = map(int, match.groups())
