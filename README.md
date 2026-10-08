@@ -75,6 +75,22 @@ Notes:
 - Don't dedupe by question number: the portal publishes multiple signed
   versions per question (`_V1`, `_V2`, ...), all distinct documents.
 
+## Extraction (OCR trial)
+
+Reply PDFs are mostly scans, so text comes from NVIDIA OCR. The trial
+(`packages/extract/TRIAL.md`) compared ocr-v1, ocr-v2, PaddleOCR and
+nemotron-parse on 12 hand-checked pages: **ocr-v1 wins (0.937)**.
+Run it with:
+
+```bash
+python -m legislative_extract --pdf-root data/pdfs \
+  --truth packages/extract/trial_ground_truth.json --out scorecard.json
+```
+
+Needs `NVIDIA_API_KEY` in the environment or `.env` (gitignored, never
+committed). Dropped endpoints: `nemoretriever-ocr-v1` (EOL),
+`nemotron-parse-2.0` (not callable), `rerank-vl` (no endpoint).
+
 ### Why so small
 
 The previous 24k-line pipeline produced composite indices
