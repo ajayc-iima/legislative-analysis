@@ -58,6 +58,21 @@ def test_write_report(tmp_path):
     assert saved["overview"]["questions"] == 4
 
 
+def test_data_notes_flag_duplicates_and_missing_subject():
+    rows = [
+        {"Session": "S1", "Session_Date": "01/Jan/2025", "Question_Number": "Q.No 1 \nA subject here",
+         "Subject": "A subject here", "Asked_By": "X"},
+        {"Session": "S1", "Session_Date": "01/Jan/2025", "Question_Number": "Q.No 1 \nA subject here",
+         "Subject": "A subject here", "Asked_By": "X"},
+        {"Session": "S1", "Session_Date": "01/Jan/2025", "Question_Number": "Q.No 2 \n",
+         "Subject": "", "Asked_By": "Y"},
+    ]
+    stats = analyze(rows)
+    notes = " ".join(stats["data_notes"])
+    assert "repeat a question number" in notes
+    assert "no subject" in notes
+
+
 def test_parse_date_formats():
     assert parse_date("15/Oct/2025").year == 2025
     assert parse_date("15-Oct-25").month == 10

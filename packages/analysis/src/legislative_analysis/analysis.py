@@ -33,9 +33,13 @@ def parse_date(value):
 
 
 def subject_of(row):
-    """Single-line subject ('Q.No 217' prefix line dropped)."""
+    """Single-line subject; a bare 'Q.No N' prefix line is dropped.
+
+    Returns '' when the row carries no real subject text.
+    """
     for column in ("Subject", "Question_Number"):
         lines = [ln.strip() for ln in str(row.get(column) or "").splitlines() if ln.strip()]
+        lines = [ln for ln in lines if not re.fullmatch(r"Q\.?\s*No\.?\s*\d+\.?", ln, re.I)]
         if lines:
             return lines[-1]
     return ""
@@ -87,6 +91,11 @@ def question_type(row):
         if value:
             return value
     return UNKNOWN
+
+
+def question_number(row):
+    match = re.search(r"Q\.?No\.?\s*(\d+)", str(row.get("Question_Number") or ""), re.I)
+    return match.group(1) if match else ""
 
 
 def load(csv_path):
@@ -174,6 +183,20 @@ def analyze(rows, top=TOP_N):
     recurring_rows.sort(key=lambda r: (-len(r["sessions"]), -r["occurrences"], r["subject"]))
 
     dates = {parse_date(r.get("Session_Date")) for r in rows}
+
+    data_notes = []
+    missing_subject = [r for r in rows if not subject_of(r)]
+    if missing_subject:
+        data_notes.append(f"{len(missing_subject)} row(s) have no subject in the source data")
+    seen, dupes = set(), 0
+    for row in rows:
+        key = (str(row.get("Session") or ""), str(row.get("Session_Date") or ""), question_number(row))
+        if key in seen:
+            dupes += 1
+        seen.add(key)
+    if dupes:
+        data_notes.append(f"{dupes} row(s) repeat a question number on the same date in the source data")
+
     return {
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "overview": {"questions": total, "sessions": len(by_session),
@@ -182,6 +205,7 @@ def analyze(rows, top=TOP_N):
                      "with_reply": sum(1 for r in rows if reply_link(r)),
                      "reply_coverage": _coverage(rows),
                      "types": dict(Counter(question_type(r) for r in rows))},
+        "data_notes": data_notes,
         "sessions": session_rows,
         "departments": dept_rows[:top],
         "mlas": mla_rows[:top],
@@ -215,6 +239,12 @@ def write_report(stats, out_dir, source=""):
         "Question types: " + (", ".join(f"{name} {count}" for name, count in overview["types"].items())
                               or "n/a"),
         "",
+    ]
+    if stats.get("data_notes"):
+        parts.append("Data notes (source data quirks, not scraper errors):")
+        parts += [f"- {note}" for note in stats["data_notes"]]
+        parts.append("")
+    parts += [
         "## Questions per session",
         "",
         _table(["Assembly", "Session", "First date", "Questions", "With reply", "Coverage"],
