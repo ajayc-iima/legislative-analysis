@@ -101,19 +101,19 @@ def test_empty_targets_match_all():
 
 
 def test_parse_table_reads_text_and_links():
-    rows, headers = parse_table(ROW_HTML)
-    assert headers[0] == "Sr No" and len(rows) == 1
+    rows = parse_table(ROW_HTML)
+    assert len(rows) == 1
     cells, links = rows[0]
     assert cells[1] == "Q.No 1Test Subject"
     assert links == ["https://x/reply.pdf"]
 
 
 def test_parse_table_empty_results():
-    assert parse_table("<div>All Question No Records Founds.</div>") == ([], [])
+    assert parse_table("<div>All Question No Records Founds.</div>") == []
 
 
 def test_build_record_maps_fixed_columns():
-    cells, links = parse_table(ROW_HTML)[0][0]
+    cells, links = parse_table(ROW_HTML)[0]
     rec = build_record(cells, links, "A11", "Autumn Session, 2026", "15-Sep-26")
     assert list(rec.keys()) == COLUMNS
     assert (rec["Sr_No"], rec["Asked_By"], rec["Departments"], rec["Ministry"]) == (

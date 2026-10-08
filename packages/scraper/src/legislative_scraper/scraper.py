@@ -9,8 +9,6 @@ from urllib.parse import urljoin
 
 from . import client, config
 
-EMPTY_MARKERS = ("no records", "no data", "no record")
-
 
 def clean_label(text):
     return (text or "").strip().rstrip(".").strip()
@@ -27,24 +25,21 @@ def matches(text, targets=None):
 
 
 class _Table(HTMLParser):
-    """One flat results table -> (headers, [([cell texts], [hrefs])])."""
+    """Collects result rows as ([cell texts], [absolute hrefs]); header rows skipped."""
 
     def __init__(self):
         super().__init__()
-        self.headers = []
         self.rows = []
         self._row = None
-        self._header_row = False
+        self._header = False
         self._cell = None
 
     def handle_starttag(self, tag, attrs):
         if tag == "tr":
-            self._row, self._header_row = [], False
-        elif tag in ("th", "td"):
-            if self._row is not None and self._cell is None:
-                self._cell = {"text": "", "links": []}
-                if tag == "th":
-                    self._header_row = True
+            self._row, self._header = [], False
+        elif tag in ("th", "td") and self._row is not None and self._cell is None:
+            self._cell = {"text": "", "links": []}
+            self._header = self._header or tag == "th"
         elif tag == "a" and self._cell is not None:
             href = dict(attrs).get("href", "").strip()
             if href and href != "#" and "javascript" not in href:
@@ -59,12 +54,8 @@ class _Table(HTMLParser):
             self._row.append(self._cell)
             self._cell = None
         elif tag == "tr" and self._row is not None:
-            row, header = self._row, self._header_row
-            self._row = None
-            if header:
-                if not self.headers:
-                    self.headers = [c["text"].strip() for c in row]
-            else:
+            row, self._row = self._row, None
+            if not self._header:
                 cells = [c["text"].strip() for c in row]
                 links = [u for c in row for u in c["links"]]
                 if len(cells) >= 3 and any(cells + links):
@@ -72,12 +63,10 @@ class _Table(HTMLParser):
 
 
 def parse_table(html):
-    """Parse search HTML; ([], []) when the portal reports no records."""
-    if any(m in (html or "").casefold() for m in EMPTY_MARKERS):
-        return [], []
+    """Parse search HTML into result rows; [] when nothing is listed."""
     table = _Table()
     table.feed(html or "")
-    return table.rows, table.headers
+    return table.rows
 
 
 def build_record(cells, links, assembly, session, date):
@@ -138,7 +127,7 @@ def scrape(portal=None, rows=None):
                     SessId=session_value, filterType="0",
                     sesiondatetid=date_value, searchText="").text
                 before = len(rows)
-                for cells, links in parse_table(html)[0]:
+                for cells, links in parse_table(html):
                     rows.append(build_record(cells, links, assembly_text, label, date_text))
                 print(f"  {assembly_text} | {label} | {date_text}: {len(rows) - before} rows")
     return rows
