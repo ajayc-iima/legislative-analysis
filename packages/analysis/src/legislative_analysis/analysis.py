@@ -42,8 +42,10 @@ def subject_of(row):
 
 
 def normalize_subject(text):
+    """Lowercase, strip punctuation, fold simple plurals ('languages'->'language')."""
     text = re.sub(r"[^a-z0-9 ]+", " ", str(text).lower())
-    return re.sub(r"\s+", " ", text).strip()
+    words = [w[:-1] if len(w) > 3 and w.endswith("s") else w for w in text.split()]
+    return " ".join(words)
 
 
 def normalize_department(name):
