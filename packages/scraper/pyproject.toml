@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legislative-scraper"
+version = "0.1.0"
+description = "NeVA Digital Library Questions scraper (Phase 1)"
+requires-python = ">=3.10"
+dependencies = ["requests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
