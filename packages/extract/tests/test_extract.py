@@ -1,6 +1,8 @@
 """Tests for the extraction harness (no live API calls)."""
 
 from legislative_extract import nvidia
+from legislative_extract.extract import (find_dates, parse_date,
+                                         split_reply, squash_spaced_text)
 from legislative_extract.trial import ocr_text, score_text
 
 
@@ -56,3 +58,46 @@ def test_parse_document_reads_tool_calls(monkeypatch):
     monkeypatch.setattr(nvidia, "_post", lambda *a, **k: (True, payload, "", 5))
     ok, text, _, _ = nvidia.parse_document("key", b"png")
     assert ok and "hello" in text
+
+
+def test_parse_date_formats():
+    assert parse_date("26/02/2024").strftime("%Y-%m-%d") == "2024-02-26"
+    assert parse_date("17.08.2026").strftime("%Y-%m-%d") == "2026-08-17"
+    assert parse_date("26th August, 2026").strftime("%Y-%m-%d") == "2026-08-26"
+    assert parse_date("19.2.2024").strftime("%Y-%m-%d") == "2024-02-19"
+    assert parse_date("28/Aug/2026").strftime("%Y-%m-%d") == "2026-08-28"
+    assert parse_date("28-Aug-26").strftime("%Y-%m-%d") == "2026-08-28"
+    assert parse_date("32/13/2024") is None
+    assert parse_date("") is None
+
+
+def test_find_dates_handles_ocr_variants():
+    assert find_dates("Memo No.57/2026/8, Dated Shillong; the 21 August, 2026.")[0] == "21 August 2026"
+    assert find_dates('Dated Shillong, the 21"t August, 2026')[0] == "21 August 2026"
+    assert find_dates("Dated Shillong, the 26th August,2026")[0] == "26 August 2026"
+    assert find_dates("Date of Reply is on 28.02.2026")[0] == "28.02.2026"
+    assert find_dates("letter (..LB.68/LA/22266 dated 07-08-2026")[1] == "07-08-2026"
+    assert find_dates("DATE OF REPLY -28.08.2026")[0] == "28.08.2026"
+    assert find_dates("Dated Shillong the 21* August, 2026")[0] == "21 August 2026"
+    assert find_dates("listed for reply on 2 8 / 0 8 / 2 0 2 6")[0] == ""
+    assert find_dates("letter No.LB.79/LA/2026/2 dated 1 4 / 0 8 / 2 0 2 6")[1] == "14/08/2026"
+
+
+def test_squash_spaced_text():
+    assert squash_spaced_text("2 8 / 0 8 / 2 0 2 6") == "28/08/2026"
+    assert squash_spaced_text("18 t h August") == "18th August"
+    assert squash_spaced_text("listed for reply on") == "listed for reply on"
+
+
+def test_split_reply_keeps_right_column_skips_full_width():
+    words = [(10, 10, 40, 20, "Question?"), (65, 10, 80, 20, "Sir,"),
+             (65, 25, 85, 35, "yes."),
+             (10, 50, 30, 60, "Memo"), (40, 50, 70, 60, "crosses-split")]
+    assert split_reply(words, 110, 100) == "Sir,\nyes."
+
+
+def test_split_reply_stops_at_footer():
+    words = [(10, 10, 40, 20, "Question?"), (65, 10, 80, 20, "Reply text"),
+             (65, 50, 100, 60, "By order etc.,"),
+             (65, 70, 100, 80, "signature block")]
+    assert split_reply(words, 110, 100) == "Reply text"
