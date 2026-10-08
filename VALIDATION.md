@@ -85,3 +85,26 @@ portal itself on every sitting date — no questions are published there.
 So the scrape captures 100% of what the portal serves for both
 assemblies.
 
+## Recurring-subject detection vs the old pipeline
+
+The analysis package's exact-match recurring detection was compared
+against the old pipeline's `recurring_families.json` (LLM-labelled
+semantic + exact families), 2026-10-08:
+
+- Every one of the old pipeline's exact-type families is found by the
+  simple matcher (37/37 when normalized; 21 with identical session
+  counts, 7 with more sessions, **0 with fewer**).
+- The old pipeline missed 41 exact recurrences inside its own session
+  scope (e.g. "tura medical college" across 3 sessions) and split some
+  subjects across families — its semantic layer merged some subjects
+  while normalisation gaps dropped others.
+- Example: "Eklavya Model Residential Schools" — the simple matcher
+  finds 8 questions across 7 sessions (2021–2026, 6 askers); the old
+  output reported 2 sessions. Verified row-by-row in the scraped CSV.
+- The old pipeline's 104 semantic-only families (subject text differs
+  between occurrences) are not reproduced, by design: exact matching
+  never merges different text, so it cannot over-merge. This under-merges
+  paraphrases (e.g. "medical college" vs "tura medical college" count
+  separately) — a documented trade-off for verifiability.
+
+
