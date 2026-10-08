@@ -1,8 +1,9 @@
 """Tests for the extraction harness (no live API calls)."""
 
 from legislative_extract import nvidia
-from legislative_extract.extract import (find_dates, parse_date,
-                                         split_reply, squash_spaced_text)
+from legislative_extract.extract import (cut_footer, find_dates, parse_date,
+                                         split_parts, split_reply,
+                                         squash_spaced_text)
 from legislative_extract.trial import ocr_text, score_text
 
 
@@ -92,8 +93,29 @@ def test_squash_spaced_text():
 def test_split_reply_keeps_right_column_skips_full_width():
     words = [(10, 10, 40, 20, "Question?"), (65, 10, 80, 20, "Sir,"),
              (65, 25, 85, 35, "yes."),
-             (10, 50, 30, 60, "Memo"), (40, 50, 70, 60, "crosses-split")]
+             (10, 50, 30, 60, "Memo No. X"), (40, 50, 70, 60, "dated")]
     assert split_reply(words, 110, 100) == "Sir,\nyes."
+
+
+def test_split_reply_keeps_wide_left_cells():
+    # coarse OCR boxes: question cell ends at 0.50, reply starts at 0.51
+    words = [(20, 10, 50, 30, "Question text here"), (51, 10, 87, 30, "Reply text here")]
+    assert split_reply(words, 100, 100, side="left") == "Question text here"
+    assert split_reply(words, 100, 100) == "Reply text here"
+
+
+def test_split_reply_skips_short_spanning_line():
+    # one short word crossing mid-page means continuous full-width text
+    words = [(10, 10, 40, 20, "Question?"), (65, 10, 80, 20, "Sir,"),
+             (10, 40, 30, 41, "Title"), (35, 40, 55, 41, "spans"), (60, 40, 100, 41, "width")]
+    assert split_reply(words, 110, 100) == "Sir,"
+
+
+def test_split_reply_skips_full_width_title_box():
+    # a single tall box spanning the gutter is a title, not reply content
+    words = [(18, 5, 96, 25, "STARRED QUESTIONS TO BE ASKED BY X"),
+             (60, 40, 95, 60, "Reply text here")]
+    assert split_reply(words, 110, 100) == "Reply text here"
 
 
 def test_split_reply_stops_at_footer():
@@ -101,3 +123,39 @@ def test_split_reply_stops_at_footer():
              (65, 50, 100, 60, "By order etc.,"),
              (65, 70, 100, 80, "signature block")]
     assert split_reply(words, 110, 100) == "Reply text"
+
+
+def test_split_reply_left_side():
+    words = [(10, 10, 40, 20, "Question?"), (65, 10, 80, 20, "Reply text")]
+    assert split_reply(words, 110, 100, side="left") == "Question?"
+
+
+def test_cut_footer_drops_memo_block():
+    text = "Sir, yes.\nDated Shillong, the 26th August, 2026\nMemo No. X\nBy Order"
+    assert cut_footer(text) == "Sir, yes."
+    assert cut_footer("Sir, yes. No date here.") == "Sir, yes. No date here."
+    assert cut_footer("") == ""
+
+
+def test_split_parts_pairs_by_label():
+    q = "Will the Minister state:\n(a) The length?\n(b) Whether fencing done?"
+    r = "Shri X to reply:\n(a) Sir, 221.225 Kms.\n(b) Sir, 215.729 Kms done."
+    parts = split_parts(q, r)
+    assert [(p["part"], p["question"][:12], p["answer"][:12]) for p in parts] == [
+        ("a", "The length?", "Sir, 221.225"),
+        ("b", "Whether fenc", "Sir, 215.729"),
+    ]
+
+
+def test_split_parts_ignores_mid_sentence_citations():
+    q = "(a) Whether prepaid meters?\n(b) Details thereof?"
+    r = "Sir, under clause 4(1) (b) of the Regulations, 2019.\nSir, yes."
+    assert split_parts(q, r) == [{"part": "", "question": q, "answer": r}]
+
+
+def test_split_parts_whole_when_unlabeled():
+    q = "(a) First? (b) Second?"
+    r = "Yes, Sir. Sir, details follow. No, Sir."
+    assert split_parts(q, r) == [{"part": "", "question": q, "answer": r}]
+    assert split_parts(q, "") == []
+    assert split_parts("", "") == []

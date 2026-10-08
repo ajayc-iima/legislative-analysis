@@ -112,8 +112,8 @@ FOOTER_MARK = re.compile(
     r"(joint|deputy|under) secretary)", re.I)
 
 
-def split_reply(words, width, height=0):
-    """Right-column text above the memo/signature footer.
+def split_reply(words, width, height=0, side="right"):
+    """Column text above the memo/signature footer (default: reply side).
 
     Both portal layouts put the reply right of mid-page; the memo block,
     copy-to list and signature sit below, so anything at/below the first
@@ -122,23 +122,80 @@ def split_reply(words, width, height=0):
     if not words:
         return ""
     split = SPLIT_FRACTION * width
-    top = 0.35 * (height or 1)
-    footer = [w for w in words
-              if (w[1] + w[3]) / 2 > top and FOOTER_MARK.match(w[4])]
-    cutoff = min(((w[1] + w[3]) / 2 for w in footer), default=float("inf"))
+    height = height or 1
+    # Full-width boxes (titles, banners) belong to neither column.
+    words = [w for w in words if not (w[0] < 0.3 * width and w[2] > 0.7 * width)]
+    if not words:
+        return ""
+    footer_ys = [(w[1] + w[3]) / 2 for w in words
+                 if (w[1] + w[3]) / 2 > 0.35 * height and FOOTER_MARK.match(w[4])]
+    cutoff = min(footer_ys, default=float("inf"))
     lines = defaultdict(list)
     for word in words:
         lines[round((word[1] + word[3]) / 2)] += [word]
     parts = []
     for _, line in sorted(lines.items()):
         line.sort()
-        if any(w[0] < split < w[2] for w in line):
+        # A short box crossing the split means continuous full-width text
+        # (titles, unwrapped lines): skip the line. Tall crossing boxes are
+        # table cells whose edges sit near the gutter: assign by center.
+        if any(w[0] < split < w[2] and (w[3] - w[1]) < 0.02 * height for w in line):
             continue
-        right = [w[4] for w in line
-                 if w[0] >= split and (w[1] + w[3]) / 2 < cutoff]
-        if right:
-            parts.append(" ".join(right))
+        text = " ".join(w[4] for w in line)
+        if FOOTER_MARK.match(text):
+            continue
+        if side == "right":
+            kept = [w[4] for w in line if (w[0] + w[2]) / 2 >= split
+                    and (w[1] + w[3]) / 2 < cutoff]
+        else:
+            kept = [w[4] for w in line if (w[0] + w[2]) / 2 < split
+                    and (w[1] + w[3]) / 2 < cutoff]
+        if kept:
+            parts.append(" ".join(kept))
     return "\n".join(parts)
+
+
+FOOTER_CUT = re.compile(
+    r"Memo\s*\.?\s*No|Date of Reply|Dated Shillong|Copy to|By Orders?|Yours faithfully",
+    re.I)
+
+
+def cut_footer(text):
+    """Drop a trailing memo/signature block leaking into column text."""
+    match = FOOTER_CUT.search(text or "")
+    return text[:match.start()].strip() if match else (text or "").strip()
+
+
+LABEL = re.compile(r"(?m)^\s*\(?([a-z])\)\s+")
+
+
+def split_parts(qtext, rtext):
+    """Pair question/reply sub-parts by their printed (a), (b) labels.
+
+    Labels count only at line starts, so citations like 'clause 4(1) (b)'
+    mid-sentence never split. Labeled reply segments pair with the
+    same-labeled question segment. When the reply carries no labels, no
+    granularity is invented: one whole-to-whole part is returned.
+    """
+
+    def segments(text):
+        chunks = LABEL.split(text or "")
+        head, rest = chunks[0].strip(), chunks[1:]
+        out = []
+        if head:
+            out.append((None, head))
+        for i in range(0, len(rest) - 1, 2):
+            if rest[i + 1].strip():
+                out.append((rest[i], rest[i + 1].strip()))
+        return out
+
+    qmap = {label: text for label, text in segments(qtext) if label}
+    parts = [{"part": label, "question": qmap.get(label, ""), "answer": text}
+             for label, text in segments(rtext) if label]
+    if not parts and (rtext or "").strip():
+        parts = [{"part": "", "question": (qtext or "").strip(),
+                  "answer": (rtext or "").strip()}]
+    return parts
 
 
 def ocr_words(key, png):
@@ -171,7 +228,7 @@ def ocr_words(key, png):
 
 
 def page_data(pdf_path, key, page, dpi=200):
-    """(full_text, reply_text, ocr_used, error) for one page."""
+    """(full_text, question_text, reply_text, ocr_used, error) for one page."""
     import pymupdf
     try:
         with pymupdf.open(pdf_path) as doc:
@@ -179,20 +236,22 @@ def page_data(pdf_path, key, page, dpi=200):
             raw = page_obj.get_text("words")
             width, height = page_obj.rect.width, page_obj.rect.height
     except Exception as exc:
-        return "", "", False, f"unreadable: {exc}"
+        return "", "", "", False, f"unreadable: {exc}"
     native = " ".join(w[4] for w in raw)
     if len(native.strip()) >= NATIVE_MIN_CHARS:
         words = [(w[0], w[1], w[2], w[3], w[4]) for w in raw]
-        return native, split_reply(words, width, height), False, ""
+        return (native, split_reply(words, width, height, side="left"),
+                split_reply(words, width, height), False, "")
     png = nvidia.render_page(pdf_path, page=page, dpi=dpi)
     ok, words, width, error = ocr_words(key, png)
     if not ok:
-        return "", "", True, error
+        return "", "", "", True, error
     full = " ".join(w[4] for w in sorted(words, key=lambda w: (w[1], w[0])))
     import io
     from PIL import Image
     height = Image.open(io.BytesIO(png)).height
-    return full, split_reply(words, width, height), True, ""
+    return (full, split_reply(words, width, height, side="left"),
+            split_reply(words, width, height), True, "")
 
 
 def extract_pdf(pdf_path, key, dpi=200, session_date=""):
@@ -204,16 +263,18 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
     except Exception as exc:
         return {"pdf": Path(pdf_path).name, "reply": "", "reply_date": "",
                 "submission_date": "", "needs_review": [f"unreadable pdf: {exc}"]}
-    texts, replies, ocr_pages, errors = [], [], 0, []
+    texts, replies, questions, ocr_pages, errors = [], [], [], 0, []
     reply_raw, submission_raw = "", ""
     for page in range(min(n_pages, MAX_OCR_PAGES)):
-        full, reply, ocr_used, error = page_data(pdf_path, key, page, dpi)
+        full, question, reply, ocr_used, error = page_data(pdf_path, key, page, dpi)
         if error:
             errors.append(f"p{page}: {error}")
         ocr_pages += ocr_used
         texts.append(full)
         if reply.strip():
             replies.append(reply)
+        if question.strip():
+            questions.append(question)
         if not reply_raw or not submission_raw:
             found_reply, found_sub = find_dates(full)
             reply_raw = reply_raw or found_reply
@@ -223,8 +284,6 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
             break
     reply_date, submission_date = parse_date(reply_raw), parse_date(submission_raw)
     needs_review = list(errors)
-    if not "".join(replies).strip():
-        needs_review.append("empty reply text")
     if not reply_raw:
         needs_review.append("no reply date found")
     elif not reply_date:
@@ -238,8 +297,13 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
     sitting = parse_session_date(session_date)
     if reply_date and sitting and abs((reply_date - sitting).days) > 120:
         needs_review.append(f"reply date {reply_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+    reply = cut_footer("\n".join(replies).strip())
+    parts = split_parts("\n".join(questions).strip(), reply)
+    if not reply:
+        needs_review.append("empty reply text")
     return {"pdf": Path(pdf_path).name,
-            "reply": "\n".join(replies).strip(),
+            "reply": reply,
+            "parts": parts,
             "reply_date": reply_date.strftime("%Y-%m-%d") if reply_date else "",
             "reply_date_raw": reply_raw,
             "submission_date": submission_date.strftime("%Y-%m-%d") if submission_date else "",
