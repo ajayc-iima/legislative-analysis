@@ -137,7 +137,8 @@ def analyze(rows, top=TOP_N):
                                      "departments": Counter(), "askers": Counter()})
     for row in rows:
         raw_dept = str(row.get("Departments") or "").strip()
-        dept = canonical.get(normalize_department(raw_dept), normalize_department(raw_dept))
+        dept_key = normalize_department(raw_dept)
+        dept = canonical.get(dept_key, dept_key)
         dept_names[dept][raw_dept or UNKNOWN] += 1
         mla = normalize_mla(row.get("Asked_By"))
         mla_names[mla][str(row.get("Asked_By") or "").strip() or UNKNOWN] += 1
