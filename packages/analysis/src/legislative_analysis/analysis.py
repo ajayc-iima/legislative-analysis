@@ -45,11 +45,21 @@ def subject_of(row):
     return ""
 
 
+SINGULAR_EXCEPTIONS = {"news", "status", "crisis", "class", "gas", "bus",
+                       "lens", "series", "basis", "analysis", "species"}
+
+
+def _singular(word):
+    """Strip a trailing plural 's', leaving singular nouns ending in 's' alone."""
+    if len(word) > 3 and word.endswith("s") and word not in SINGULAR_EXCEPTIONS:
+        return word[:-1]
+    return word
+
+
 def normalize_subject(text):
     """Lowercase, strip punctuation, fold simple plurals ('languages'->'language')."""
     text = re.sub(r"[^a-z0-9 ]+", " ", str(text).lower())
-    words = [w[:-1] if len(w) > 3 and w.endswith("s") else w for w in text.split()]
-    return " ".join(words)
+    return " ".join(_singular(w) for w in text.split())
 
 
 def normalize_department(name):
@@ -59,7 +69,7 @@ def normalize_department(name):
         return UNKNOWN
     key = re.sub(r"[^a-z0-9 ]+", " ", text.lower())
     words = [w for w in key.split() if w != "department"]
-    words = [w[:-1] if len(w) > 3 and w.endswith("s") else w for w in words]
+    words = [_singular(w) for w in words]
     return " ".join(words) or UNKNOWN
 
 
@@ -122,6 +132,7 @@ def analyze(rows, top=TOP_N):
     # Fold variant spellings into one key each before grouping.
     all_keys = {normalize_department(str(row.get("Departments") or "").strip()) for row in rows}
     canonical = canonical_departments(all_keys)
+    subject_names = defaultdict(Counter)
     recurring = defaultdict(lambda: {"sessions": set(), "occurrences": 0,
                                      "departments": Counter(), "askers": Counter()})
     for row in rows:
@@ -137,6 +148,7 @@ def analyze(rows, top=TOP_N):
         by_session[session].append(row)
         subject = normalize_subject(subject_of(row))
         if len(subject) >= MIN_SUBJECT_CHARS:
+            subject_names[subject][subject_of(row)] += 1
             entry = recurring[subject]
             entry["sessions"].add(session)
             entry["occurrences"] += 1
@@ -147,6 +159,8 @@ def analyze(rows, top=TOP_N):
     display = {key: re.sub(r"\s+", " ", counter.most_common(1)[0][0])
                for key, counter in dept_names.items()}
     mla_display = {key: counter.most_common(1)[0][0] for key, counter in mla_names.items()}
+    subject_display = {key: re.sub(r"\s+", " ", counter.most_common(1)[0][0]).rstrip(".")
+                       for key, counter in subject_names.items()}
 
     session_rows = []
     for name, items in by_session.items():
@@ -184,7 +198,8 @@ def analyze(rows, top=TOP_N):
                 for name, items in by_mla.items()]
     mla_rows.sort(key=lambda m: (-m["questions"], m["mla"]))
 
-    recurring_rows = [{"subject": subject, "sessions": sorted(entry["sessions"]),
+    recurring_rows = [{"subject": subject_display.get(subject, subject), "key": subject,
+                       "sessions": sorted(entry["sessions"]),
                        "occurrences": entry["occurrences"],
                        "departments": {display.get(k, k): v for k, v in entry["departments"].most_common(3)},
                        "askers": {mla_display.get(k, k): v for k, v in entry["askers"].most_common(3)}}

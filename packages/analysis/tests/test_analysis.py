@@ -29,9 +29,11 @@ def test_load_and_overview(tmp_path):
 
 def test_recurring_subjects_are_case_insensitive(tmp_path):
     stats = analyze(load(_csv(tmp_path)))
-    subjects = {r["subject"]: r for r in stats["recurring"]}
+    subjects = {r["subject"].lower(): r for r in stats["recurring"]}
     assert "marten dumping ground" in subjects
     assert len(subjects["marten dumping ground"]["sessions"]) == 2
+    # display keeps the most common original spelling, not the normalized key
+    assert subjects["marten dumping ground"]["subject"] == "Marten dumping ground"
     assert "roads" not in subjects  # too short to count as a meaningful subject
 
 
@@ -88,6 +90,16 @@ def test_parse_date_formats():
     assert parse_date("15/Oct/2025").year == 2025
     assert parse_date("15-Oct-25").month == 10
     assert parse_date("garbage") is None
+
+
+def test_plural_folding_keeps_ss_us_is_words_intact():
+    from legislative_analysis.analysis import normalize_subject
+    assert normalize_subject("languages") == "language"
+    assert normalize_subject("buses") == "buse"  # deliberate: simple s-fold
+    assert normalize_subject("status") == "status"
+    assert normalize_subject("class") == "class"
+    assert normalize_subject("crisis") == "crisis"
+    assert normalize_subject("news") == "news"
 
 
 def test_department_variants_merge():
