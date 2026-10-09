@@ -154,6 +154,9 @@ def build():
         f"Source: `data/dl_questions_raw.csv` (2,634 questions, 16 sessions, "
         f"84 sitting dates, Assemblies 10–11, 2018–2026)_")
     add("")
+    add("_Visual companion: `output/charts/index.html` — 15 charts (PNG + SVG) "
+        "with KPI cards and data tables; regenerate alongside this document._")
+    add("")
     add("## Executive Summary")
     add("")
     add(f"- **Corpus**: {total:,} questions to {n_depts} departments by "

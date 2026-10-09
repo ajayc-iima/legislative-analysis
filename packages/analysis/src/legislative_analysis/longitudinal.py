@@ -117,7 +117,7 @@ def build_families(rows, subject_of, reply_lookup, session_order):
             ordered.append((sk, rec.get("reply", ""), rep))
         status, detail = code_trajectory([(s, t) for s, t, _ in ordered])
         out[key] = {
-            "subject": re.sub(r"\s+", " ", group[0].get("Subject") or "").strip(),
+            "subject": re.sub(r"\s+", " ", subject_of(group[0]) or "").strip(),
             "sessions": [f"{s[0].split()[0]} {s[1]}" for s, _t, _r in ordered],
             "occurrences": len(group),
             "departments": sorted({str(r.get("Departments") or "") for r in group}),
@@ -230,7 +230,7 @@ def emerging_issues(rows, subject_of, session_order, recent=3, min_occurrences=2
         askers = {str(r.get("Asked_By") or "") for r in group}
         if first in recent_keys and len(group) >= min_occurrences and len(askers) >= 2:
             emerging.append({
-                "subject": re.sub(r"\s+", " ", group[0].get("Subject") or "").strip(),
+                "subject": re.sub(r"\s+", " ", subject_of(group[0]) or "").strip(),
                 "first_session": f"{first[0].split()[0]} {first[1]}",
                 "occurrences": len(group),
                 "askers": sorted(askers),

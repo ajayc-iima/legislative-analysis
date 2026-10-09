@@ -288,6 +288,17 @@ def test_build_families_groups_recurring():
     assert set(fam["askers"]) == {"X", "Y"}
 
 
+def test_family_subject_strips_question_number():
+    rows = [
+        _row(Assembly="A10", Session="S1", Subject="Q.No 10\nReplacement of Transformers",
+             Departments="Power", Asked_By="X"),
+        _row(Assembly="A11", Session="S2", Subject="Q.No 10\nReplacement of transformers",
+             Departments="Power", Asked_By="Y"),
+    ]
+    families = longitudinal.build_families(rows, base.subject_of, {}, [("A10", "S1"), ("A11", "S2")])
+    assert next(iter(families.values()))["subject"] == "Replacement of Transformers"
+
+
 def test_build_families_codes_resolution_from_replies():
     rows = [
         _row(Assembly="A10", Session="S1", Subject="Replacement of Transformers",

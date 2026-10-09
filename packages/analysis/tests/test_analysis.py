@@ -60,6 +60,14 @@ def test_write_report(tmp_path):
     assert saved["overview"]["questions"] == 4
 
 
+def test_subject_of_strips_inline_question_number():
+    from legislative_analysis.analysis import subject_of
+    assert subject_of({"Subject": "Q.No 217 Installation of Smart Meters"}) == \
+        "Installation of Smart Meters"
+    assert subject_of({"Subject": "Q.No 217 \nInstallation of Smart Meters"}) == \
+        "Installation of Smart Meters"
+
+
 def test_data_notes_flag_duplicates_and_missing_subject():
     rows = [
         {"Session": "S1", "Session_Date": "01/Jan/2025", "Question_Number": "Q.No 1 \nA subject here",
