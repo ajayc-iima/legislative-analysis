@@ -4,20 +4,34 @@ Monorepo for Meghalaya Legislative Assembly (NeVA) data work. Three small
 packages under `packages/`. Facts only — no composite scores, no invented
 probabilities.
 
+## Layout
+
+```
+README.md            this file
+docs/                PLAN, mental model, execution plan, article scaffold, validation notes
+packages/            scraper · analysis · pdfs · extract (installable, tested)
+scripts/             pipeline runners: run_layers, build_compendium,
+                     build_charts, build_dashboard, port_reference,
+                     validate_layers, supervisor trials
+scripts/dev/         one-off diagnostic probes (see its README)
+data/                scraped CSV + reply PDFs (gitignored, regenerable)
+output/              layers/ · compendium/ · charts/ · validation/ (gitignored)
+```
+
 ## Setup
 
 Requires Python 3.10+. The analysis package is stdlib-only; the scraper
 and PDF store use `requests`.
 
 ```bash
-pip install -e packages/scraper -e packages/analysis -e packages/pdfs
+pip install -e packages/scraper -e packages/analysis -e packages/pdfs -e packages/extract
+pip install matplotlib  # charts only (in the venv: .venv\Scripts\pip.exe install matplotlib)
 ```
 
 ## Scraper
 
 Downloads Digital Library questions (assemblies 10 and 11, all sessions)
 into one CSV.
-
 ```bash
 python -m legislative_scraper [--out PATH]
 ```
@@ -115,10 +129,10 @@ computes only what the data supports directly, in six auditable layers:
 
 ```bash
 # question-side layers (1-3, 5-6) + layers report
-python run_layers.py          # -> output/layers/
+python scripts/run_layers.py          # -> output/layers/
 
 # full Compendium (adds Layer 4 from extracted replies; regenerate as OCR accrues)
-python build_compendium.py    # -> output/compendium/COMPENDIUM.md
+python scripts/build_compendium.py    # -> output/compendium/COMPENDIUM.md
 
 # 15 publication charts (PNG + SVG, World Bank palette) + HTML dashboard
 python scripts/build_charts.py     # -> output/charts/ (manifest.json)

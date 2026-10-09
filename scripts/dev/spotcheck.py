@@ -4,7 +4,7 @@ import random
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "packages/analysis/src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages/analysis/src"))
 
 from legislative_analysis import analysis as base
 from legislative_analysis.codebook import classify_all

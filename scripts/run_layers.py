@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "packages/analysis/src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packages/analysis/src"))
 
 from legislative_analysis import analysis as base
 from legislative_analysis.codebook import classify_all, normalize_dept, DEPT_THEME
@@ -26,7 +26,7 @@ from legislative_analysis.geography import tag_all, lookup_mla
 from legislative_analysis.demand import classify_all as classify_demand_all
 from legislative_analysis import longitudinal as longi
 
-REPO = Path(__file__).parent
+REPO = Path(__file__).resolve().parent.parent
 CSV_PATH = REPO / "data/dl_questions_raw.csv"
 OUT_DIR = REPO / "output/layers"
 

@@ -21,7 +21,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "packages/analysis/src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packages/analysis/src"))
 
 from legislative_analysis import analysis as base
 from legislative_analysis.codebook import normalize_dept, DEPT_THEME
@@ -30,7 +30,7 @@ from legislative_analysis.response import (
 )
 from legislative_analysis import longitudinal as longi
 
-REPO = Path(__file__).parent
+REPO = Path(__file__).resolve().parent.parent
 LAYERS = REPO / "output/layers"
 EXTRACTED = REPO / "data/extracted/extracted.jsonl"
 OUT_DIR = REPO / "output/compendium"

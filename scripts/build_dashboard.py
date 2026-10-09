@@ -185,7 +185,8 @@ def main():
              "<p><b>Known limits.</b> OCR accuracy is bounded (~0.94/field); flagged date pairs are excluded "
              "from timeliness but kept in the data. MLA-based geography assumes questions concern the asker's "
              "own seat. regenerate everything with "
-             "<code>python run_layers.py &amp;&amp; python build_compendium.py &amp;&amp; "
+             "<code>python scripts/run_layers.py &amp;&amp; "
+             "python scripts/build_compendium.py &amp;&amp; "
              "python scripts/build_charts.py &amp;&amp; python scripts/build_dashboard.py</code>.</p></div>")
 
     L.append("<footer>Legislative Analysis · Meghalaya Assembly 10–11 (2018–2026) · "
