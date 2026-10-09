@@ -24,7 +24,7 @@ CV_BASE = "https://ai.api.nvidia.com/v1/cv"
 CHAT_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 EMBED_URL = "https://integrate.api.nvidia.com/v1/embeddings"
 
-TIMEOUT = 180
+TIMEOUT = 60  # measured slow calls (vision-11b) take ~20s; anything beyond a minute is hung
 
 
 def load_key(explicit=""):

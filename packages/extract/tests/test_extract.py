@@ -255,3 +255,18 @@ def test_acquire_lock_reaps_stale_pid(tmp_path):
     assert _pid_alive(2 ** 30) is False  # no such process
     (tmp_path / "extract.lock").write_text("1073741824", encoding="utf-8")
     assert _acquire_lock(tmp_path) is not None  # stale lock reaped
+
+
+def test_validate_lock_accepts_own_pid(tmp_path):
+    import os
+    from legislative_extract.extract import _validate_lock
+    lock = tmp_path / "extract.lock"
+    lock.write_text(str(os.getpid()), encoding="utf-8")
+    assert _validate_lock(lock) is True
+
+
+def test_validate_lock_rejects_superseded(tmp_path):
+    from legislative_extract.extract import _validate_lock
+    lock = tmp_path / "extract.lock"
+    lock.write_text("1073741824", encoding="utf-8")
+    assert _validate_lock(lock) is False

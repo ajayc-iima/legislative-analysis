@@ -448,6 +448,20 @@ def _acquire_lock(out_dir):
         return None
 
 
+def _validate_lock(lock_path):
+    """Confirm our lock still names us after a settling delay.
+
+    Two starters in the same second can interleave acquire/reap so
+    that both briefly believe they hold the lock. The last writer
+    wins; everyone else exits here. Pure read — unit-testable.
+    """
+    time.sleep(2)
+    try:
+        return int(lock_path.read_text(encoding="utf-8").strip()) == os.getpid()
+    except (OSError, ValueError):
+        return False
+
+
 def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True):
     """Extract all PDFs listed in the CSV; skips basenames already stored.
 
@@ -458,6 +472,9 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
     """
     lock_path = _acquire_lock(out_dir)
     if lock_path is None:
+        return 2
+    if not _validate_lock(lock_path):
+        print("lock superseded by another starter; exiting.")
         return 2
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
