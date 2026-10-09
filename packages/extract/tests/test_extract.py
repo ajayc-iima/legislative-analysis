@@ -1,8 +1,8 @@
 """Tests for the extraction harness (no live API calls)."""
 
 from legislative_extract import nvidia
-from legislative_extract.extract import (cut_footer, find_dates, parse_date,
-                                         split_parts, split_reply,
+from legislative_extract.extract import (cut_footer, find_dates, flag_date_issues,
+                                         parse_date, split_parts, split_reply,
                                          squash_spaced_text)
 from legislative_extract.trial import ocr_text, score_text
 
@@ -212,3 +212,46 @@ def test_split_parts_whole_when_unlabeled():
     assert split_parts(q, r) == [{"part": "", "question": q, "answer": r}]
     assert split_parts(q, "") == []
     assert split_parts("", "") == []
+
+
+def test_flag_date_issues_clean_pair():
+    from datetime import datetime
+    notes = flag_date_issues(datetime(2026, 8, 21), datetime(2026, 8, 7),
+                             datetime(2026, 8, 28), [])
+    assert notes == []
+
+
+def test_flag_date_issues_submission_far_from_sitting():
+    # regression: a 2016 submission date on a 2026 sitting must be flagged
+    from datetime import datetime
+    notes = flag_date_issues(datetime(2026, 8, 20), datetime(2016, 8, 17),
+                             datetime(2026, 8, 28), [])
+    assert any("submission date" in n and "far from sitting" in n for n in notes)
+
+
+def test_flag_date_issues_reply_before_submission():
+    from datetime import datetime
+    notes = flag_date_issues(datetime(2026, 8, 5), datetime(2026, 8, 10),
+                             datetime(2026, 8, 28), [])
+    assert notes == ["reply date precedes submission date"]
+
+
+def test_flag_date_issues_tolerates_missing():
+    notes = flag_date_issues(None, None, None, [])
+    assert notes == []
+
+
+def test_acquire_lock_single_instance(tmp_path):
+    import os
+    from legislative_extract.extract import _acquire_lock
+    first = _acquire_lock(tmp_path)
+    assert first is not None and first.exists()
+    assert _acquire_lock(tmp_path) is None  # live PID holds it
+    first.unlink()
+
+
+def test_acquire_lock_reaps_stale_pid(tmp_path):
+    from legislative_extract.extract import _acquire_lock, _pid_alive
+    assert _pid_alive(2 ** 30) is False  # no such process
+    (tmp_path / "extract.lock").write_text("1073741824", encoding="utf-8")
+    assert _acquire_lock(tmp_path) is not None  # stale lock reaped

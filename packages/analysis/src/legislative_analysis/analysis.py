@@ -39,12 +39,15 @@ def parse_date(value):
 
 
 def subject_of(row):
-    """Single-line subject; a bare 'Q.No N' prefix line is dropped."""
+    """Single-line subject; a bare 'Q.No N' prefix is dropped."""
     for column in ("Subject", "Question_Number"):
         lines = [ln.strip() for ln in str(row.get(column) or "").splitlines() if ln.strip()]
         lines = [ln for ln in lines if not re.fullmatch(r"Q\.?\s*No\.?\s*\d+\.?", ln, re.I)]
         if lines:
-            return lines[-1]
+            text = lines[-1]
+            # single-line subjects may carry the prefix inline
+            text = re.sub(r"^Q\.?\s*No\.?\s*\d+\s*[:.\-]?\s*", "", text, flags=re.I)
+            return text.strip()
     return ""
 
 
@@ -276,10 +279,15 @@ def main(argv=None):
     parser.add_argument("--csv", default=DEFAULT_CSV, help="questions CSV (scraper output)")
     parser.add_argument("--out-dir", default=DEFAULT_OUT, help="output directory")
     parser.add_argument("--top", type=int, default=TOP_N, help="rows per table")
+    parser.add_argument("--layers", action="store_true",
+                        help="run the full six-layer analysis (Tasks 1-3)")
     args = parser.parse_args(argv)
     if not Path(args.csv).exists():
         print(f"Input CSV not found: {args.csv} (run the scraper first, or pass --csv)")
         return 1
+    if args.layers:
+        from . import layers as layers_mod
+        return layers_mod.main(["--csv", args.csv, "--out-dir", args.out_dir])
     stats = analyze(load(args.csv), top=args.top)
     report = write_report(stats, args.out_dir, source=args.csv)
     print(f"{stats['overview']['questions']} questions -> {report}")

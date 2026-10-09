@@ -107,15 +107,15 @@ def valid_iso(value):
         return False
 
 
-def adjudicate(key, readings, csv_context, sitting_iso=""):
-    """Full consensus: 2-of-3 agreement wins; else supervisor decides.
+def _vote_winners(readings, sitting):
+    """Gated 2-of-N vote over the readings present.
 
-    Returns {reply_date, submission_date, confidence, provenance}.
-    Every winner passes all gates inside this function: parseable,
-    reply >= submission, and within 120 days of the sitting date.
-    Anything failing a gate is dropped before confidence is assigned.
+    Returns (winners, dates) where winners maps
+    'reply_date'/'submission_date' to (iso, confidence).
+    Only dates that parse and fall within 120 days of the
+    sitting are counted; anything failing a gate is dropped.
     """
-    sitting = parse_date(sitting_iso) if sitting_iso else None
+    dates = [reading_dates(r) for r in readings if r["ok"]]
 
     def plausible(iso):
         day = parse_date(iso) if iso else None
@@ -125,8 +125,6 @@ def adjudicate(key, readings, csv_context, sitting_iso=""):
             return False
         return True
 
-    time.sleep(PAUSE_SECONDS)
-    dates = [reading_dates(r) for r in readings if r["ok"]]
     votes_reply, votes_sub = {}, {}
     for reply_iso, sub_iso in dates:
         if reply_iso and plausible(reply_iso):
@@ -138,6 +136,41 @@ def adjudicate(key, readings, csv_context, sitting_iso=""):
         top = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))
         if top and top[0][1] >= 2:
             winners[field] = (top[0][0], "high" if len(dates) >= 3 else "medium")
+    return winners, dates
+
+
+def quick_consensus(readings, sitting_iso=""):
+    """Vote + gates only — no supervisor, no API call.
+
+    Lets the caller check whether the fast readers (ocr, parse)
+    already decide both dates before spending the ~20s vision
+    call. Returns the same shape as adjudicate minus provenance
+    detail, with confidence reflecting how many readers agreed.
+    """
+    sitting = parse_date(sitting_iso) if sitting_iso else None
+    winners, _dates = _vote_winners(readings, sitting)
+    reply_iso = winners.get("reply_date", ("", ""))[0]
+    sub_iso = winners.get("submission_date", ("", ""))[0]
+    if reply_iso and sub_iso and reply_iso < sub_iso:
+        return {"reply_date": "", "submission_date": "",
+                "confidence": "low"}
+    return {"reply_date": reply_iso if valid_iso(reply_iso) else "",
+            "submission_date": sub_iso if valid_iso(sub_iso) else "",
+            "confidence": (winners.get("reply_date", ("", "low"))[1]
+                           if winners else "low")}
+
+
+def adjudicate(key, readings, csv_context, sitting_iso=""):
+    """Full consensus: 2-of-3 agreement wins; else supervisor decides.
+
+    Returns {reply_date, submission_date, confidence, provenance}.
+    Every winner passes all gates inside this function: parseable,
+    reply >= submission, and within 120 days of the sitting date.
+    Anything failing a gate is dropped before confidence is assigned.
+    """
+    sitting = parse_date(sitting_iso) if sitting_iso else None
+    time.sleep(PAUSE_SECONDS)
+    winners, dates = _vote_winners(readings, sitting)
     reply_iso = winners.get("reply_date", ("", ""))[0]
     sub_iso = winners.get("submission_date", ("", ""))[0]
     parts = ["consensus"] if winners else []
@@ -149,29 +182,20 @@ def adjudicate(key, readings, csv_context, sitting_iso=""):
         supported = {d for pair in dates for d in pair if d}
         if "reply_date" not in winners:
             candidate = decision.get("reply_date", "") or ""
-            if candidate in supported and plausible(candidate):
+            if candidate in supported and parse_date(candidate) and (
+                    not sitting or abs((parse_date(candidate) - sitting).days) <= 120):
                 reply_iso = candidate
                 parts.append("supervisor")
             elif candidate:
                 parts.append("supervisor-rejected")
         if "submission_date" not in winners:
             candidate = decision.get("submission_date", "") or ""
-            if candidate in supported and plausible(candidate):
+            if candidate in supported and parse_date(candidate) and (
+                    not sitting or abs((parse_date(candidate) - sitting).days) <= 120):
                 sub_iso = candidate
                 parts.append("supervisor")
             elif candidate:
                 parts.append("supervisor-rejected")
-    if reply_iso and sub_iso and reply_iso < sub_iso:
-        return {"reply_date": "", "submission_date": "",
-                "confidence": "low", "provenance": "rejected-order",
-                "readings": [r["reader"] for r in readings if r["ok"]]}
-    confidence = decision.get("confidence", "low") if "supervisor" in parts else (
-        winners.get("reply_date", ("", "low"))[1] if winners else "low")
-    provenance = "+".join(parts) if parts else "unresolved"
-    return {"reply_date": reply_iso if valid_iso(reply_iso) else "",
-            "submission_date": sub_iso if valid_iso(sub_iso) else "",
-            "confidence": confidence, "provenance": provenance,
-            "readings": [r["reader"] for r in readings if r["ok"]]}
     if reply_iso and sub_iso and reply_iso < sub_iso:
         return {"reply_date": "", "submission_date": "",
                 "confidence": "low", "provenance": "rejected-order",

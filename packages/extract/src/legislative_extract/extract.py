@@ -10,6 +10,7 @@ Dates come from regexes over all pages; validators decide approval.
 import argparse
 import csv
 import json
+import os
 import re
 import time
 from collections import defaultdict
@@ -84,6 +85,21 @@ def parse_date(value):
 def parse_session_date(value):
     """Session_Date from the CSV: 28/Aug/2026, 28-Aug-26, 2026-08-28."""
     return parse_date(str(value or "").strip())
+
+
+def flag_date_issues(reply_date, submission_date, sitting, needs_review):
+    """Append ordering/proximity notes for a date pair (values are kept).
+
+    Pure function over datetimes so the policy is unit-testable; both
+    extract_pdf (deterministic) and Layer 4 filtering share its flags.
+    """
+    if reply_date and submission_date and reply_date < submission_date:
+        needs_review.append("reply date precedes submission date")
+    if reply_date and sitting and abs((reply_date - sitting).days) > 120:
+        needs_review.append(f"reply date {reply_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+    if submission_date and sitting and abs((submission_date - sitting).days) > 120:
+        needs_review.append(f"submission date {submission_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+    return needs_review
 
 
 def find_dates(text, reply_date=""):
@@ -298,11 +314,8 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
         needs_review.append("no submission date found")
     elif not submission_date:
         needs_review.append(f"unparseable submission date: {submission_raw[:40]!r}")
-    if reply_date and submission_date and reply_date < submission_date:
-        needs_review.append("reply date precedes submission date")
     sitting = parse_session_date(session_date)
-    if reply_date and sitting and abs((reply_date - sitting).days) > 120:
-        needs_review.append(f"reply date {reply_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+    flag_date_issues(reply_date, submission_date, sitting, needs_review)
     reply = cut_footer("\n".join(replies).strip())
     parts = split_parts("\n".join(questions).strip(), reply)
     if not reply:
@@ -317,8 +330,135 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
             "pages_ocr": ocr_pages, "needs_review": needs_review}
 
 
-def run(csv_path, pdf_root, out_dir, key, limit=0, session=""):
-    """Extract all PDFs listed in the CSV; skips basenames already stored."""
+def consensus_fill(pdf_path, key, record, row):
+    """Run model consensus for dates the deterministic pass missed.
+
+    Page 0 first; page 1 only if dates remain undecided. The two
+    fast readers (ocr-v1, parse) run first; the ~20s vision
+    reader is only invoked when they do not already agree on both
+    dates, and the reasoning supervisor only when no 2-of-N
+    consensus emerges. Fills the record in place; returns True
+    when both dates are decided.
+    """
+    from . import consensus
+    readings = []
+    name = Path(pdf_path).name
+    context = {"session": str(row.get("Session") or ""),
+               "sitting_date": str(row.get("Session_Date") or ""),
+               "department": str(row.get("Departments") or ""),
+               "mla": str(row.get("Asked_By") or ""),
+               "subject": str(row.get("Subject") or "")[:120]}
+    sitting_iso = str(row.get("Session_Date") or "")
+    import pymupdf
+    try:
+        with pymupdf.open(pdf_path) as doc:
+            n_pages = len(doc)
+    except Exception:
+        return False
+
+    def both_decided():
+        q = consensus.quick_consensus(readings, sitting_iso=sitting_iso)
+        return bool(q["reply_date"] and q["submission_date"])
+
+    for page in range(min(n_pages, 2)):
+        png = nvidia.render_page(pdf_path, page=page, dpi=200)
+        readings.append(consensus.read_ocr(key, png))
+        time.sleep(consensus.PAUSE_SECONDS)
+        ok, text, _, _ = nvidia.parse_document(key, png)
+        readings.append({"reader": "parse", "ok": ok, "text": text,
+                         "error": "", "ms": 0})
+        time.sleep(consensus.PAUSE_SECONDS)
+        if both_decided():
+            break  # fast readers agree; skip the vision call
+        readings.append(consensus.read_vision(key, png))
+        if both_decided():
+            break
+
+    verdict = consensus.adjudicate(key, readings, context,
+                                   sitting_iso=sitting_iso)
+    filled = False
+    if not record["reply_date"] and verdict["reply_date"]:
+        record["reply_date"] = verdict["reply_date"]
+        filled = True
+    if not record["submission_date"] and verdict["submission_date"]:
+        record["submission_date"] = verdict["submission_date"]
+        filled = True
+    record["confidence"] = verdict["confidence"]
+    record["provenance"] = verdict["provenance"]
+    record["needs_review"] = [
+        note for note in record["needs_review"]
+        if not (note.startswith("no reply date") and record["reply_date"])
+        and not (note.startswith("no submission date") and record["submission_date"])
+        and not (note.startswith("unparseable reply date") and record["reply_date"])
+        and not (note.startswith("unparseable submission date") and record["submission_date"])]
+    if verdict["confidence"] == "low" or not verdict["reply_date"]:
+        record["needs_review"].append(f"consensus {verdict['provenance']} ({verdict['confidence']})")
+    return filled
+
+
+def _pid_alive(pid):
+    """True if a process with this PID exists (stale-lock check)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    except OSError:
+        return False
+    return True
+
+
+def _acquire_lock(out_dir):
+    """Single-instance guard: one extraction run per output directory.
+
+    Uses atomic exclusive creation so two processes starting in the
+    same second cannot both proceed. A lock whose PID is dead is
+    reaped. Returns the lock path, or None when another live run
+    holds it.
+    """
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    lock_path = out / "extract.lock"
+
+    def create():
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(str(os.getpid()))
+
+    try:
+        create()
+        return lock_path
+    except FileExistsError:
+        pass
+    try:
+        pid = int(lock_path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        pid = -1
+    if pid > 0 and _pid_alive(pid):
+        print(f"extract.lock held by live PID {pid}; refusing a second run "
+              f"(delete {lock_path} if that process is not extracting).")
+        return None
+    lock_path.unlink(missing_ok=True)
+    try:
+        create()
+        return lock_path
+    except FileExistsError:
+        print("lost the lock race; another instance is running.")
+        return None
+
+
+def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True):
+    """Extract all PDFs listed in the CSV; skips basenames already stored.
+
+    Per-PDF failures are caught and logged to extract_errors.jsonl
+    so one bad scan cannot abort the run; the run is resume-friendly
+    (already-stored basenames are skipped). A lockfile refuses a
+    second concurrent run in the same output directory.
+    """
+    lock_path = _acquire_lock(out_dir)
+    if lock_path is None:
+        return 2
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     done_path = out / "extracted.jsonl"
@@ -330,8 +470,10 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session=""):
         rows = [r for r in csv.DictReader(handle)
                 if (r.get("Document_Link") or "").strip().lower().startswith("http")
                 and (not session or session.lower() in str(r.get("Session") or "").lower())]
-    extracted, review, saved = 0, 0, 0
-    with open(done_path, "a", encoding="utf-8") as handle:
+    extracted, review, saved, failed = 0, 0, 0, 0
+    err_path = out / "extract_errors.jsonl"
+    with open(done_path, "a", encoding="utf-8") as handle, \
+            open(err_path, "a", encoding="utf-8") as errs:
         for row in rows:
             name = str(row["Document_Link"]).rsplit("/", 1)[-1]
             if name in done or (limit and saved >= limit):
@@ -339,9 +481,22 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session=""):
             matches = list(Path(pdf_root).rglob(name))
             if not matches:
                 continue
-            record = extract_pdf(str(matches[0]), key, session_date=str(row.get("Session_Date") or ""))
-            record["session"] = str(row.get("Session") or "")
-            record["question"] = str(row.get("Question_Number") or "").replace("\n", " ")[:80]
+            try:
+                record = extract_pdf(str(matches[0]), key,
+                                     session_date=str(row.get("Session_Date") or ""))
+                record["session"] = str(row.get("Session") or "")
+                record["question"] = str(row.get("Question_Number") or "").replace("\n", " ")[:80]
+                record.setdefault("confidence", "deterministic")
+                record.setdefault("provenance", "deterministic")
+                if consensus_on and (not record["reply_date"] or not record["submission_date"]):
+                    consensus_fill(str(matches[0]), key, record, row)
+            except Exception as exc:
+                failed += 1
+                errs.write(json.dumps({"pdf": name, "error": repr(exc)},
+                                       ensure_ascii=False) + "\n")
+                errs.flush()
+                print(f"  [FAIL] {name}: {exc!r}")
+                continue
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             handle.flush()
             done.add(name)
@@ -351,7 +506,49 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session=""):
             print(f"  [{saved}] {name}: reply={len(record['reply'])}ch "
                   f"rdate={record['reply_date'] or '?'} sdate={record['submission_date'] or '?'} "
                   f"{'REVIEW: ' + '; '.join(record['needs_review']) if record['needs_review'] else 'ok'}")
-    print(f"extracted {extracted} ({review} need review), skipped {len(done) - saved} already stored")
+    print(f"extracted {extracted} ({review} need review), "
+          f"skipped {len(done) - saved} already stored, {failed} failed")
+    lock_path.unlink(missing_ok=True)
+    return 0
+
+
+def append_csv(csv_path, out_dir, csv_out=""):
+    """Write a copy of the questions CSV with extracted date columns appended.
+
+    Matches JSONL records to rows by Document_Link basename. Never modifies
+    the input CSV; reply text and parts stay in extracted.jsonl (keyed by pdf).
+    """
+    out = Path(out_dir)
+    records = {}
+    done_path = out / "extracted.jsonl"
+    if done_path.exists():
+        with open(done_path, encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    record = json.loads(line)
+                    records[record.get("pdf", "")] = record
+    with open(csv_path, newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        columns = list(reader.fieldnames or []) + ["Reply_Date_Extracted",
+            "Submission_Date_Extracted", "Extract_Confidence", "Extract_Provenance"]
+    for row in rows:
+        name = str(row.get("Document_Link") or "").rsplit("/", 1)[-1]
+        record = records.get(name, {})
+        row["Reply_Date_Extracted"] = record.get("reply_date", "")
+        row["Submission_Date_Extracted"] = record.get("submission_date", "")
+        row["confidence"] = record.get("confidence", "")
+        row["Extract_Confidence"] = record.get("confidence", "")
+        row["Extract_Provenance"] = record.get("provenance", "")
+    dest = Path(csv_out) if csv_out else Path(csv_path).parent / "dl_questions_extracted.csv"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest, "w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.DictWriter(handle, columns, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+    filled = sum(1 for r in rows if r["Reply_Date_Extracted"])
+    print(f"wrote {dest} ({len(rows)} rows, {filled} with reply dates)")
+    return str(dest)
 
 
 def main(argv=None):
@@ -366,5 +563,4 @@ def main(argv=None):
     if not key:
         print("No NVIDIA API key (env NVIDIA_API_KEY or legacy config).")
         return 1
-    run(args.csv, args.pdf_root, args.out, key, limit=args.limit, session=args.session)
-    return 0
+    return run(args.csv, args.pdf_root, args.out, key, limit=args.limit, session=args.session)
