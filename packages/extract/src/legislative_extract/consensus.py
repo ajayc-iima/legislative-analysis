@@ -2,14 +2,14 @@
 
 Three blind readers vote mechanically (2-of-N on normalized ISO
 dates); validators gate acceptance (parseable, ordered, within 120
-days of the sitting). Fields without agreement stay blank with low
+days of the sitting). A reasoning supervisor adjudicates
+disagreements but cannot invent: picks must appear in ≥1 reading
+and pass the gates. Fields still undecided stay blank with low
 confidence and provenance 'unresolved' for the review queue.
 
-A reasoning supervisor was trialled and REMOVED: across 128
-production records and 11 trial decisions it never produced a
-usable answer (endless deliberation, template echoes, empty
-responses), while faster models on this endpoint are unserved
-(HTTP 404) or time out. supervise() is kept for model trials only.
+Correctness is enforced by the gates + support rule (unchanged
+since the 12/12 validation); the supervisor exists for recall on
+ties. Model trials live in scripts/supervisor_trial*.py.
 """
 
 import json
@@ -180,25 +180,49 @@ def quick_consensus(readings, sitting_iso=""):
 
 
 def adjudicate(key, readings, csv_context, sitting_iso=""):
-    """Vote + gates only. Returns {reply_date, submission_date, confidence, provenance}.
+    """Full consensus: 2-of-3 agreement wins; else supervisor decides.
 
-    2-of-N agreement wins per field; every winner must parse, keep
-    reply >= submission, and fall within 120 days of the sitting date.
-    Fields without agreement stay blank (confidence low, provenance
-    'unresolved') for the review queue. Makes no API calls.
-    (The `key`/`csv_context` parameters are kept for signature parity
-    with the retired supervisor path.)
+    Returns {reply_date, submission_date, confidence, provenance}.
+    Every winner passes all gates inside this function: parseable,
+    reply >= submission, and within 120 days of the sitting date.
+    Anything failing a gate is dropped before confidence is assigned.
+    The supervisor only fills gaps and cannot invent (support rule).
     """
     sitting = parse_date(sitting_iso) if sitting_iso else None
+    time.sleep(PAUSE_SECONDS)
     winners, dates = _vote_winners(readings, sitting)
     reply_iso = winners.get("reply_date", ("", ""))[0]
     sub_iso = winners.get("submission_date", ("", ""))[0]
+    parts = ["consensus"] if winners else []
+    decision = {}
+    if "reply_date" not in winners or "submission_date" not in winners:
+        time.sleep(PAUSE_SECONDS)
+        result = supervise(key, readings, csv_context)
+        decision = result.get("decision", {}) if result["ok"] else {}
+        supported = {d for pair in dates for d in pair if d}
+        if "reply_date" not in winners:
+            candidate = decision.get("reply_date", "") or ""
+            if candidate in supported and parse_date(candidate) and (
+                    not sitting or abs((parse_date(candidate) - sitting).days) <= 120):
+                reply_iso = candidate
+                parts.append("supervisor")
+            elif candidate:
+                parts.append("supervisor-rejected")
+        if "submission_date" not in winners:
+            candidate = decision.get("submission_date", "") or ""
+            if candidate in supported and parse_date(candidate) and (
+                    not sitting or abs((parse_date(candidate) - sitting).days) <= 120):
+                sub_iso = candidate
+                parts.append("supervisor")
+            elif candidate:
+                parts.append("supervisor-rejected")
     if reply_iso and sub_iso and reply_iso < sub_iso:
         return {"reply_date": "", "submission_date": "",
                 "confidence": "low", "provenance": "rejected-order",
                 "readings": [r["reader"] for r in readings if r["ok"]]}
-    confidence = winners.get("reply_date", ("", "low"))[1] if winners else "low"
-    provenance = "consensus" if winners else "unresolved"
+    confidence = decision.get("confidence", "low") if "supervisor" in parts else (
+        winners.get("reply_date", ("", "low"))[1] if winners else "low")
+    provenance = "+".join(parts) if parts else "unresolved"
     return {"reply_date": reply_iso if valid_iso(reply_iso) else "",
             "submission_date": sub_iso if valid_iso(sub_iso) else "",
             "confidence": confidence, "provenance": provenance,

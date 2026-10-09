@@ -134,10 +134,9 @@ across the two assemblies.
   Assemblies 10–11 (2018–2026), 16 sessions, 84 sitting dates.
 - Replies: 2,246 signed PDFs (85.3% coverage), scanned images.
 - OCR: NVIDIA nemotron-ocr-v1 with a three-reader consensus
-  (ocr-v1 + parse + vision-11b); mechanical gates (parseable, ordered,
-  within ±120 days of the sitting date) apply to every winner, and
-  fields without agreement stay blank for the review queue (a reasoning
-  supervisor was trialled and removed: 0 usable decisions in over 70 tries).
+  (ocr-v1 + parse + vision-11b) and a reasoning supervisor for
+  unresolved dates; mechanical gates (parseable, ordered,
+  within ±120 days of the sitting date) apply to every winner.
   Validated: 12/12 reply dates correct against hand-annotated
   truth; 0 confident errors.
 

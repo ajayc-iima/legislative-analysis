@@ -336,9 +336,8 @@ def consensus_fill(pdf_path, key, record, row):
     Page 0 first; page 1 only if dates remain undecided. The two
     fast readers (ocr-v1, parse) run first; the ~20s vision
     reader is only invoked when they do not already agree on both
-    dates. Fields without 2-of-N agreement stay blank with low
-    confidence for the review queue (no supervisor: trialled,
-    0% usable decisions). Fills the record in place; returns True
+    dates, and the reasoning supervisor only when no 2-of-N
+    consensus emerges. Fills the record in place; returns True
     when both dates are decided.
     """
     from . import consensus

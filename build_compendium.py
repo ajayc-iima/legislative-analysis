@@ -357,10 +357,9 @@ def build():
         "`data/dl_questions_raw.csv` (2,634 rows, 15 columns)")
     add("- Reply PDFs: 2,246 signed scans under `data/pdfs/` (85.3% of questions)")
     add("- Reply text/dates: NVIDIA OCR (nemotron-ocr-v1) with a three-reader "
-        "consensus (ocr-v1 + parse + vision-11b); mechanical gates (parseable, "
-        "ordered, ±120 days of the sitting date) apply to every winner, and "
-        "fields without agreement stay blank for the review queue (a reasoning "
-        "supervisor was trialled and removed: 0 usable decisions in over 70 tries)")
+        "consensus (ocr-v1 + parse + vision-11b) and a reasoning supervisor "
+        "for unresolved dates; mechanical gates (parseable, ordered, "
+        "±120 days of the sitting date) apply to every winner")
     add("")
     add("## Classification codebooks")
     add("")
