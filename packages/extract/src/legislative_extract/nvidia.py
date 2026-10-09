@@ -140,33 +140,32 @@ def render_page(pdf_path, page=0, dpi=200, max_bytes=1_800_000):
 
     Keep max_bytes generous: OCR accuracy collapses on thumbnails, and the
     CV endpoints accept multi-MB payloads. Downscaling is a last resort.
-    Giant scans that explode the rasterizer (DecompressionBombError at
-    200dpi) fall back through lower DPIs instead of abandoning the PDF.
+    Giant scans that explode the rasterizer (DecompressionBombError)
+    fall back through lower DPIs instead of abandoning the PDF. The
+    bomb fires both at raster time and in the downscale step, so the
+    whole render+downscale is inside the retry.
     """
     import pymupdf
+    from PIL import Image
     last = None
     for attempt_dpi in (dpi, max(dpi // 2, 72), 72):
         try:
             with pymupdf.open(pdf_path) as doc:
                 pix = doc[page].get_pixmap(dpi=attempt_dpi)
                 data = pix.tobytes("png")
-            break
+            if len(data) > max_bytes:
+                scale = 0.85
+                while len(data) > max_bytes and scale > 0.3:
+                    image = Image.open(io.BytesIO(data))
+                    size = (int(image.width * scale), int(image.height * scale))
+                    buffer = io.BytesIO()
+                    image.resize(size).save(buffer, format="PNG", optimize=True)
+                    data = buffer.getvalue()
+                    scale -= 0.15
+            return data
         except Exception as exc:  # oversized page or transient read failure
             last = exc
-    else:
-        raise last
-    if len(data) <= max_bytes:
-        return data
-    from PIL import Image
-    scale = 0.85
-    while len(data) > max_bytes and scale > 0.3:
-        image = Image.open(io.BytesIO(data))
-        size = (int(image.width * scale), int(image.height * scale))
-        buffer = io.BytesIO()
-        image.resize(size).save(buffer, format="PNG", optimize=True)
-        data = buffer.getvalue()
-        scale -= 0.15
-    return data
+    raise last
 
 
 def page_text_layer(pdf_path, page=0):

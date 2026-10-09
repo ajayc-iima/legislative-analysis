@@ -303,6 +303,7 @@ def test_validate_lock_rejects_superseded(tmp_path):
 
 
 def test_render_page_retries_lower_dpi(monkeypatch):
+    import io as stdlib_io
     import pymupdf
     from PIL import Image as PILImage
     from legislative_extract import nvidia as nvidia_mod
@@ -332,6 +333,56 @@ def test_render_page_retries_lower_dpi(monkeypatch):
     monkeypatch.setattr(pymupdf, "open", lambda *a, **k: FakeDoc())
     assert nvidia_mod.render_page("whatever.pdf", dpi=200) == b"fakepng"
     assert calls[0] == 200 and calls[-1] <= 100
+
+
+def test_render_page_survives_downscale_bomb(monkeypatch):
+    """The bomb fires in Image.open (downscale step), not the rasterizer."""
+    import io
+    import os
+    import pymupdf
+    from PIL import Image as PILImage
+    from legislative_extract import nvidia as nvidia_mod
+    dpis = []
+
+    big = io.BytesIO()
+    PILImage.frombytes("RGB", (400, 400),
+                       os.urandom(400 * 400 * 3)).save(big, format="PNG")
+    big_png = big.getvalue()
+    assert len(big_png) > 100
+
+    class FakePix:
+        def tobytes(self, fmt):
+            return big_png
+
+    class FakePage:
+        def get_pixmap(self, dpi):
+            dpis.append(dpi)
+            return FakePix()
+
+    class FakeDoc:
+        def __getitem__(self, i):
+            return FakePage()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    real_open = PILImage.open
+    calls = []
+
+    def bomb_once(*a, **k):
+        calls.append(1)
+        if len(calls) == 1:
+            raise PILImage.DecompressionBombError("too big")
+        return real_open(*a, **k)
+
+    monkeypatch.setattr(pymupdf, "open", lambda *a, **k: FakeDoc())
+    monkeypatch.setattr(PILImage, "open", bomb_once)
+    out = nvidia_mod.render_page("whatever.pdf", dpi=200, max_bytes=100)
+    assert dpis[0] == 200 and len(dpis) >= 2  # fell through to lower DPI
+    assert isinstance(out, bytes) and out
 
 
 def test_run_aborts_on_volume_failure(tmp_path, monkeypatch):
