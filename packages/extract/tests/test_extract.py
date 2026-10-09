@@ -270,3 +270,58 @@ def test_validate_lock_rejects_superseded(tmp_path):
     lock = tmp_path / "extract.lock"
     lock.write_text("1073741824", encoding="utf-8")
     assert _validate_lock(lock) is False
+
+
+def test_consensus_fill_survives_render_failure(tmp_path, monkeypatch):
+    import pymupdf
+    from legislative_extract import extract as ext_mod
+    from legislative_extract import nvidia as nvidia_mod
+    pdf = tmp_path / "x.pdf"
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 72), "hello")
+    doc.save(str(pdf))
+    doc.close()
+    monkeypatch.setattr(nvidia_mod, "render_page",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("locked")))
+    record = {"reply_date": "", "submission_date": "", "needs_review": []}
+    assert ext_mod.consensus_fill(str(pdf), "key", record, {}) is False
+
+
+def test_run_skips_directory_matches(tmp_path):
+    from legislative_extract import extract as ext_mod
+    pdf_root = tmp_path / "pdfs"
+    pdf_root.mkdir()
+    (pdf_root / "a.pdf").mkdir()  # directory, not a file
+    csv_path = tmp_path / "q.csv"
+    csv_path.write_text("Document_Link,Session,Session_Date,Question_Number\n"
+                        "http://x/a.pdf,S1,01/Jan/2026,Q.No 1\n", encoding="utf-8")
+    assert ext_mod.run(str(csv_path), str(pdf_root), str(tmp_path / "out"), "key") == 0
+    content = (tmp_path / "out" / "extracted.jsonl").read_text(encoding="utf-8")
+    assert content == ""  # directory match skipped: nothing extracted, nothing failed
+
+
+def test_run_survives_failing_pdf(tmp_path, monkeypatch):
+    from legislative_extract import extract as ext_mod
+    pdf_root = tmp_path / "pdfs"
+    pdf_root.mkdir()
+    (pdf_root / "a.pdf").write_bytes(b"%PDF-1.4 fake")
+    (pdf_root / "b.pdf").write_bytes(b"%PDF-1.4 fake")
+    csv_path = tmp_path / "q.csv"
+    csv_path.write_text("Document_Link,Session,Session_Date,Question_Number\n"
+                        "http://x/a.pdf,S1,01/Jan/2026,Q.No 1\n"
+                        "http://x/b.pdf,S1,01/Jan/2026,Q.No 2\n", encoding="utf-8")
+
+    def boom(pdf_path, key, session_date=""):
+        if pdf_path.endswith("a.pdf"):
+            raise RuntimeError("bad scan")
+        return {"pdf": "b.pdf", "reply": "Sir, yes.", "parts": [],
+                "reply_date": "2026-01-05", "reply_date_raw": "",
+                "submission_date": "", "submission_date_raw": "",
+                "pages_ocr": 0, "needs_review": []}
+
+    monkeypatch.setattr(ext_mod, "extract_pdf", boom)
+    monkeypatch.setattr(ext_mod, "consensus_fill", lambda *a, **k: False)
+    assert ext_mod.run(str(csv_path), str(pdf_root), str(tmp_path / "out"), "key") == 0
+    lines = (tmp_path / "out" / "extracted.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1 and '"b.pdf"' in lines[0]
+    assert "a.pdf" in (tmp_path / "out" / "extract_errors.jsonl").read_text(encoding="utf-8")

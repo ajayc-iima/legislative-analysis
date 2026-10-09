@@ -26,10 +26,13 @@ CODEBOOK = [
      "addiction", "hiv", "aids", "substance abuse"]),
     ("Health Services", "Scheme Implementation", ["nhm", "nrhm", "ayushman", "pmjay", "mission health",
      "national health mission", "health insurance", "mjpjay"]),
+    ("Health Services", "Disease & Mortality", ["death", "dead", "died", "disease", "patient",
+     "maternal death", "infant death", "epidemic", "outbreak"]),
 
     # ── Education ──
     ("Education & Schools", "Schools", ["school", "lp school", "hs school", "primary school",
-     "high school", "secondary school", "deficit school", "government school", "lp s school"]),
+     "high school", "secondary school", "deficit school", "government school", "lp s school",
+     "student", "pupil", "enrollment", "enrolment", "dropout"]),
     ("Education & Schools", "Teachers & Staff", ["teacher", "teaching staff", "assistant teacher",
      "post of teacher", "regularisation", "regularization of teacher", "posting of teacher"]),
     ("Education & Schools", "Higher Education", ["college", "university", "degree college",
@@ -47,7 +50,8 @@ CODEBOOK = [
 
     # ── Water ──
     ("Water Supply", "Piped Water", ["jal jeevan", "jjm", "fhtc", "functional household tap",
-     "tap connection", "piped water", "water supply scheme", "greater shillong water",
+     "tap connection", "piped water", "water supply", "drinking water",
+     "water supply scheme", "greater shillong water",
      "reticulated water"]),
     ("Water Supply", "Sanitation", ["swachh", "sbm", "sanitation", "toilet", "sewerage", "sewage",
      "liquid waste", "solid waste"]),
@@ -77,7 +81,7 @@ CODEBOOK = [
      "divyang", "social security", "assistance to", "financial assistance", "one time grant"]),
     ("Social Welfare", "Women & Child", ["icds", "anganwadi", "child development", "women and child",
      "malnutrition", "nutrition", "maternity", "creche", "beti", "poshan"]),
-    ("Social Welfare", "Welfare Boards & Schemes", ["social welfare", "welfare board", "scholarship",
+    ("Social Welfare", "Welfare Boards & Schemes", ["social welfare", "welfare", "welfare board", "scholarship",
      "orphan", "destitute", "destitute", "adoption", "janaushadhi"]),
 
     # ── Employment ──
@@ -89,6 +93,9 @@ CODEBOOK = [
     ("Employment & Jobs", "Skill & Self Employment", ["skill", "mssds", "training centre",
      "self employment", "entrepreneur", "startup", "pmegp", "udyog", "unemployment",
      "employment exchange", "placement"]),
+    ("Employment & Jobs", "Labour Welfare", ["labour", "worker", "shram", "unorganised",
+     "unorganized", "minimum wage", "bonus", "welfare of workers", "migrant worker",
+     "e-shram", "labour welfare"]),
 
     # ── Agriculture ──
     ("Agriculture & Farming", "Crops", ["paddy", "rice", "ginger", "turmeric", "areca", "betel nut",
@@ -118,8 +125,7 @@ CODEBOOK = [
      "digital", "online portal", "it park", "data centre", "wifi", "connectivity project",
      "information technology", "e-governance"]),
     ("Governance & Administration", "Missions & Funds", ["cm special", "chief minister special",
-     "special development fund", "mbda", "basin development", "sasci", "sasci",
-     "implementation of", "status of the"]),
+     "special development fund", "mbda", "basin development", "sasci", "sasci"]),
     ("Governance & Administration", "Transparency", ["rti", "right to information", "corruption",
      "vigilance", "audit", "accountability", "grievance", "public servant"]),
 
@@ -231,20 +237,60 @@ DEPT_THEME = {
 }
 
 
+# Aliases for long portal forms absent from the legacy table.
+DEPT_NORM_EXTRA = {
+    "department of labour, employment & skill development": "Labour",
+}
+
+
 def normalize_dept(name):
     """Canonical department name via the ported alias table."""
     key = " ".join(str(name or "").lower().split())
+    if key in DEPT_NORM_EXTRA:
+        return DEPT_NORM_EXTRA[key]
     if key in ref.DEPT_NORM:
         return ref.DEPT_NORM[key]
-    # try without trailing 'department'
-    trimmed = key.removesuffix(" department")
-    return ref.DEPT_NORM.get(trimmed, str(name or "").strip() or "Unknown")
+    # long portal forms: "Department of Labour, Employment & ..." / "... Department"
+    for variant in (key.removeprefix("department of ").removesuffix(" department"),
+                    key.removesuffix(" department"),
+                    key.removeprefix("department of ")):
+        if variant in ref.DEPT_NORM:
+            return ref.DEPT_NORM[variant]
+    return str(name or "").strip() or "Unknown"
 
 
 def _clean(text):
     """Lowercase with punctuation folded to spaces (keyword-match friendly)."""
     import re
     return " " + re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()) + " "
+
+
+# Plural exceptions shared with analysis.normalize_subject: words whose
+# trailing 's' must not be folded ('status' -> 'statu' would be wrong).
+SINGULAR_EXCEPTIONS = {"news", "status", "crisis", "class", "gas", "bus",
+                       "lens", "series", "basis", "analysis", "species"}
+
+
+def _stem(word):
+    if len(word) > 3 and word.endswith("s") and word not in SINGULAR_EXCEPTIONS:
+        return word[:-1]
+    return word
+
+
+def _kw_hit(keyword, text_tokens):
+    """Stemmed token-sequence match: 'road' hits 'roads', but 'ps'
+    never hits 'collapse' and 'fir' never hits 'affirmative'.
+
+    Single-token keywords match whole tokens only; multi-word
+    keywords must appear as a contiguous token run.
+    """
+    parts = [_stem(w) for w in _clean(keyword).split()]
+    if not parts:
+        return False
+    if len(parts) == 1:
+        return parts[0] in text_tokens
+    return any(text_tokens[i:i + len(parts)] == parts
+               for i in range(len(text_tokens) - len(parts) + 1))
 
 
 def classify(subject, question_text, department):
@@ -254,6 +300,7 @@ def classify(subject, question_text, department):
     was used, so every classification is auditable.
     """
     text = _clean(subject) + _clean(question_text)
+    text_tokens = [_stem(w) for w in text.split()]
     dept = normalize_dept(department)
     dept_theme = DEPT_THEME.get(dept)
     if dept_theme is None:
@@ -264,7 +311,7 @@ def classify(subject, question_text, department):
     hits = {}
     for theme, sub, keywords in CODEBOOK:
         for kw in keywords:
-            if _clean(kw) in text or kw in text:
+            if _kw_hit(kw, text_tokens):
                 scores[theme] = scores.get(theme, 0) + 1
                 hits.setdefault(theme, []).append((sub, kw))
 

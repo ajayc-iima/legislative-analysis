@@ -53,6 +53,43 @@ def test_theme_tiebreak_prefers_own_department():
     assert ev["method"] == "keyword_tiebreak_department"
 
 
+def test_short_keywords_need_whole_words():
+    # regression: 'fir' fired inside "affirmative", 'ps' inside longer words
+    theme, _sub, ev = codebook.classify(
+        "Whether the government has knowledge of the affirmative report",
+        "", "Health & Family Welfare")
+    assert theme == "Health Services"
+    assert ev["method"] == "department_prior"
+    theme, _sub, ev = codebook.classify(
+        "The status of the building collapse inquiry", "", "Health & Family Welfare")
+    assert theme == "Health Services"
+
+
+def test_plural_keywords_still_match():
+    theme, _sub, _ev = codebook.classify(
+        "Repairing of internal roads", "", "Power")
+    assert theme == "Roads & Infrastructure"
+
+
+def test_water_supply_and_labour_classification():
+    theme, _sub, _ev = codebook.classify(
+        "Upper Shillong Water Supply Project",
+        'the status of the scheme "Upper Shillong Water Supply Project"?',
+        "Public Health Engineering Department")
+    assert theme == "Water Supply"
+    theme, _sub, _ev = codebook.classify(
+        "Registration under E-Shram Portal",
+        "measures for the welfare and safety of unorganised workers",
+        "Department of Labour, Employment & Skill Development")
+    assert theme == "Employment & Jobs"
+
+
+def test_normalize_dept_long_portal_forms():
+    assert codebook.normalize_dept(
+        "Department of Labour, Employment & Skill Development") == "Labour"
+    assert codebook.normalize_dept("Health &  Family Welfare Department") == "Health & Family Welfare"
+
+
 def test_normalize_dept_uses_ported_aliases():
     assert codebook.normalize_dept("Power Department") == "Power"
     assert codebook.normalize_dept("Health & Family Welfare Department") == "Health & Family Welfare"

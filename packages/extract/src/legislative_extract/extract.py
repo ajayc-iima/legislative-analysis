@@ -361,7 +361,10 @@ def consensus_fill(pdf_path, key, record, row):
         return bool(q["reply_date"] and q["submission_date"])
 
     for page in range(min(n_pages, 2)):
-        png = nvidia.render_page(pdf_path, page=page, dpi=200)
+        try:
+            png = nvidia.render_page(pdf_path, page=page, dpi=200)
+        except Exception:
+            return False  # transient read failure; keep deterministic results
         readings.append(consensus.read_ocr(key, png))
         time.sleep(consensus.PAUSE_SECONDS)
         ok, text, _, _ = nvidia.parse_document(key, png)
@@ -489,13 +492,22 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                 and (not session or session.lower() in str(r.get("Session") or "").lower())]
     extracted, review, saved, failed = 0, 0, 0, 0
     err_path = out / "extract_errors.jsonl"
-    with open(done_path, "a", encoding="utf-8") as handle, \
-            open(err_path, "a", encoding="utf-8") as errs:
+
+    def log_error(name, exc):
+        """Error logging must never kill the run (the volume flickered once)."""
+        try:
+            with open(err_path, "a", encoding="utf-8") as ef:
+                ef.write(json.dumps({"pdf": name, "error": repr(exc)},
+                                    ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+    with open(done_path, "a", encoding="utf-8") as handle:
         for row in rows:
             name = str(row["Document_Link"]).rsplit("/", 1)[-1]
             if name in done or (limit and saved >= limit):
                 continue
-            matches = list(Path(pdf_root).rglob(name))
+            matches = [m for m in Path(pdf_root).rglob(name) if m.is_file()]
             if not matches:
                 continue
             try:
@@ -507,15 +519,13 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                 record.setdefault("provenance", "deterministic")
                 if consensus_on and (not record["reply_date"] or not record["submission_date"]):
                     consensus_fill(str(matches[0]), key, record, row)
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+                handle.flush()
             except Exception as exc:
                 failed += 1
-                errs.write(json.dumps({"pdf": name, "error": repr(exc)},
-                                       ensure_ascii=False) + "\n")
-                errs.flush()
+                log_error(name, exc)
                 print(f"  [FAIL] {name}: {exc!r}")
                 continue
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-            handle.flush()
             done.add(name)
             saved += 1
             extracted += 1
