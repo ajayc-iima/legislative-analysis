@@ -73,30 +73,31 @@ def test_adjudicate_two_of_three_wins():
     assert verdict["provenance"] == "consensus"
 
 
-def test_adjudicate_single_vote_goes_to_supervisor(monkeypatch):
+def test_adjudicate_single_vote_is_unresolved_without_supervisor(monkeypatch):
     import legislative_extract.consensus as consensus
+
+    def explode(*a, **k):
+        raise AssertionError("supervisor must not be called")
+    monkeypatch.setattr(consensus, "supervise", explode)
     readings = [
         {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
     ]
-    monkeypatch.setattr(consensus, "supervise", lambda *a, **k: {
-        "ok": True, "decision": {"reply_date": "2023-09-14", "submission_date": "",
-                                 "confidence": "medium", "rationale": "x"}, "error": "", "ms": 1})
-    verdict = consensus.adjudicate("key", readings, {})
-    assert verdict["reply_date"] == "2023-09-14"
-    assert verdict["provenance"] == "supervisor"
-
-
-def test_adjudicate_rejects_unsupported_supervisor_pick(monkeypatch):
-    import legislative_extract.consensus as consensus
-    readings = [
-        {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
-    ]
-    monkeypatch.setattr(consensus, "supervise", lambda *a, **k: {
-        "ok": True, "decision": {"reply_date": "2020-01-01", "submission_date": "",
-                                 "confidence": "high", "rationale": "x"}, "error": "", "ms": 1})
-    verdict = consensus.adjudicate("key", readings, {})
+    verdict = consensus.adjudicate("key", readings, {}, sitting_iso="2023-09-16")
     assert verdict["reply_date"] == ""
-    assert verdict["provenance"] == "supervisor-rejected"
+    assert verdict["confidence"] == "low"
+    assert verdict["provenance"] == "unresolved"
+
+
+def test_adjudicate_keeps_partial_winners():
+    import legislative_extract.consensus as consensus
+    readings = [
+        {"reader": "ocr", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
+        {"reader": "vision", "ok": True, "text": "Dated Shillong, the 14th September, 2023", "error": "", "ms": 1},
+    ]
+    verdict = consensus.adjudicate("key", readings, {}, sitting_iso="2023-09-16")
+    assert verdict["reply_date"] == "2023-09-14"
+    assert verdict["submission_date"] == ""
+    assert verdict["provenance"] == "consensus"
 
 
 def test_adjudicate_drops_implausible_consensus(monkeypatch):

@@ -1,10 +1,15 @@
 """Model consensus for uncertain extractions (review queue only).
 
-Three blind readers + one supervisor. Readers never see each other's
-output or any candidate date. Agreement is mechanical (2-of-3 on
-normalized ISO dates), then validators gate acceptance. The supervisor
-only adjudicates disagreements, using CSV context for plausibility —
-it cannot invent: winners must appear in ≥1 reading and pass parsing.
+Three blind readers vote mechanically (2-of-N on normalized ISO
+dates); validators gate acceptance (parseable, ordered, within 120
+days of the sitting). Fields without agreement stay blank with low
+confidence and provenance 'unresolved' for the review queue.
+
+A reasoning supervisor was trialled and REMOVED: across 128
+production records and 11 trial decisions it never produced a
+usable answer (endless deliberation, template echoes, empty
+responses), while faster models on this endpoint are unserved
+(HTTP 404) or time out. supervise() is kept for model trials only.
 """
 
 import json
@@ -54,27 +59,41 @@ def reading_dates(reading):
             sub.strftime("%Y-%m-%d") if sub else "")
 
 
-def supervise(key, readings, csv_context, retries=1):
+def supervise(key, readings, csv_context, retries=1, prompt_style="reason"):
     """Reasoning supervisor: decides from blind readings + CSV context.
 
     Retries once on empty/non-JSON answers. Every pick is still gated by
     the support rule in adjudicate (must appear in ≥1 reading).
+    prompt_style 'json' demands ONLY the JSON object (for small instruct
+    models — and rambling reasoning models — that never converge).
     """
     shown = []
     for i, reading in enumerate(readings):
         shown.append(f"--- Reading {chr(65 + i)} ---\n{reading['text'][:1500]}")
-    prompt = (
-        "Three independent readings (A, B, C) of one legislative reply page "
-        "are shown. Using them plus the official record below, decide the "
-        "reply date and the submission date. Prefer dates appearing in at "
-        "least two readings; use the record only for plausibility (dates "
-        "should fall near the sitting date). Never invent a date: if none "
-        "is supported, use empty strings. First reason briefly, then reply "
-        "with a JSON object on its own line: "
-        '{"reply_date": "YYYY-MM-DD or empty", '
-        '"submission_date": "YYYY-MM-DD or empty", '
-        '"confidence": "high/medium/low", "rationale": "one line"}\n\n'
-        f"Official record: {json.dumps(csv_context)}\n\n" + "\n".join(shown))
+    schema = ('{"reply_date": "YYYY-MM-DD or empty", '
+              '"submission_date": "YYYY-MM-DD or empty", '
+              '"confidence": "high/medium/low", "rationale": "one line"}')
+    if prompt_style == "json":
+        prompt = (
+            "Three independent readings (A, B, C) of one legislative reply page "
+            "are shown. Using them plus the official record below, decide the "
+            "reply date and the submission date. Prefer dates appearing in at "
+            "least two readings; use the record only for plausibility (dates "
+            "should fall near the sitting date). Never invent a date: if none "
+            "is supported, use empty strings. "
+            "Reply with ONLY this JSON object and no other text: "
+            f"{schema}\n\n"
+            f"Official record: {json.dumps(csv_context)}\n\n" + "\n".join(shown))
+    else:
+        prompt = (
+            "Three independent readings (A, B, C) of one legislative reply page "
+            "are shown. Using them plus the official record below, decide the "
+            "reply date and the submission date. Prefer dates appearing in at "
+            "least two readings; use the record only for plausibility (dates "
+            "should fall near the sitting date). Never invent a date: if none "
+            "is supported, use empty strings. First reason briefly, then reply "
+            f"with a JSON object on its own line: {schema}\n\n"
+            f"Official record: {json.dumps(csv_context)}\n\n" + "\n".join(shown))
     error, ms_total, attempt = "", 0, 0
     while attempt <= retries:
         ok, payload, err, ms = nvidia._post(
@@ -161,48 +180,25 @@ def quick_consensus(readings, sitting_iso=""):
 
 
 def adjudicate(key, readings, csv_context, sitting_iso=""):
-    """Full consensus: 2-of-3 agreement wins; else supervisor decides.
+    """Vote + gates only. Returns {reply_date, submission_date, confidence, provenance}.
 
-    Returns {reply_date, submission_date, confidence, provenance}.
-    Every winner passes all gates inside this function: parseable,
-    reply >= submission, and within 120 days of the sitting date.
-    Anything failing a gate is dropped before confidence is assigned.
+    2-of-N agreement wins per field; every winner must parse, keep
+    reply >= submission, and fall within 120 days of the sitting date.
+    Fields without agreement stay blank (confidence low, provenance
+    'unresolved') for the review queue. Makes no API calls.
+    (The `key`/`csv_context` parameters are kept for signature parity
+    with the retired supervisor path.)
     """
     sitting = parse_date(sitting_iso) if sitting_iso else None
-    time.sleep(PAUSE_SECONDS)
     winners, dates = _vote_winners(readings, sitting)
     reply_iso = winners.get("reply_date", ("", ""))[0]
     sub_iso = winners.get("submission_date", ("", ""))[0]
-    parts = ["consensus"] if winners else []
-    decision = {}
-    if "reply_date" not in winners or "submission_date" not in winners:
-        time.sleep(PAUSE_SECONDS)
-        result = supervise(key, readings, csv_context)
-        decision = result.get("decision", {}) if result["ok"] else {}
-        supported = {d for pair in dates for d in pair if d}
-        if "reply_date" not in winners:
-            candidate = decision.get("reply_date", "") or ""
-            if candidate in supported and parse_date(candidate) and (
-                    not sitting or abs((parse_date(candidate) - sitting).days) <= 120):
-                reply_iso = candidate
-                parts.append("supervisor")
-            elif candidate:
-                parts.append("supervisor-rejected")
-        if "submission_date" not in winners:
-            candidate = decision.get("submission_date", "") or ""
-            if candidate in supported and parse_date(candidate) and (
-                    not sitting or abs((parse_date(candidate) - sitting).days) <= 120):
-                sub_iso = candidate
-                parts.append("supervisor")
-            elif candidate:
-                parts.append("supervisor-rejected")
     if reply_iso and sub_iso and reply_iso < sub_iso:
         return {"reply_date": "", "submission_date": "",
                 "confidence": "low", "provenance": "rejected-order",
                 "readings": [r["reader"] for r in readings if r["ok"]]}
-    confidence = decision.get("confidence", "low") if "supervisor" in parts else (
-        winners.get("reply_date", ("", "low"))[1] if winners else "low")
-    provenance = "+".join(parts) if parts else "unresolved"
+    confidence = winners.get("reply_date", ("", "low"))[1] if winners else "low"
+    provenance = "consensus" if winners else "unresolved"
     return {"reply_date": reply_iso if valid_iso(reply_iso) else "",
             "submission_date": sub_iso if valid_iso(sub_iso) else "",
             "confidence": confidence, "provenance": provenance,

@@ -43,7 +43,7 @@ def squash_spaced_text(text):
 
 
 REPLY_DATE = [
-    re.compile(r"date\s+of\s+(?:reply|discussion)(?:\s+is\s+on)?\s*[-:]?\s*(\d{1,2}[/\-.,]\d{1,2}[/\-.,]\d{2,4})", re.I),
+    re.compile(r"date\s+of\s+(?:reply|discussion)(?:\s+(?:is\s+)?on)?\s*[-:]?\s*(\d{1,2}[/\-.,]\d{1,2}[/\-.,]\d{2,4})", re.I),
     re.compile(r"dated\s*:?,?\s*(?:[A-Za-z]+[;,]?\s+)?(?:the\s+)?(\d{1,2})[a-z\"'*.(]{0,6}\s+([A-Za-z]+),?\s*(\d{4})", re.I),
     re.compile(r"dated\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})", re.I),
 ]
@@ -336,8 +336,9 @@ def consensus_fill(pdf_path, key, record, row):
     Page 0 first; page 1 only if dates remain undecided. The two
     fast readers (ocr-v1, parse) run first; the ~20s vision
     reader is only invoked when they do not already agree on both
-    dates, and the reasoning supervisor only when no 2-of-N
-    consensus emerges. Fills the record in place; returns True
+    dates. Fields without 2-of-N agreement stay blank with low
+    confidence for the review queue (no supervisor: trialled,
+    0% usable decisions). Fills the record in place; returns True
     when both dates are decided.
     """
     from . import consensus
