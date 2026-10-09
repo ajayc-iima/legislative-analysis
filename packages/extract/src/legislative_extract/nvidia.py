@@ -140,11 +140,21 @@ def render_page(pdf_path, page=0, dpi=200, max_bytes=1_800_000):
 
     Keep max_bytes generous: OCR accuracy collapses on thumbnails, and the
     CV endpoints accept multi-MB payloads. Downscaling is a last resort.
+    Giant scans that explode the rasterizer (DecompressionBombError at
+    200dpi) fall back through lower DPIs instead of abandoning the PDF.
     """
     import pymupdf
-    with pymupdf.open(pdf_path) as doc:
-        pix = doc[page].get_pixmap(dpi=dpi)
-        data = pix.tobytes("png")
+    last = None
+    for attempt_dpi in (dpi, max(dpi // 2, 72), 72):
+        try:
+            with pymupdf.open(pdf_path) as doc:
+                pix = doc[page].get_pixmap(dpi=attempt_dpi)
+                data = pix.tobytes("png")
+            break
+        except Exception as exc:  # oversized page or transient read failure
+            last = exc
+    else:
+        raise last
     if len(data) <= max_bytes:
         return data
     from PIL import Image

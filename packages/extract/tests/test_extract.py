@@ -138,6 +138,13 @@ def test_parse_date_formats():
     assert parse_date("") is None
 
 
+def test_parse_date_forgives_ocr_month_typos():
+    assert parse_date("21 Agust 2026").strftime("%Y-%m-%d") == "2026-08-21"
+    assert parse_date("21 Aug 2026").strftime("%Y-%m-%d") == "2026-08-21"
+    assert parse_date("21 Xyz 2026") is None
+    assert parse_date("12 Sept 2026").strftime("%Y-%m-%d") == "2026-09-12"
+
+
 def test_find_dates_handles_ocr_variants():
     assert find_dates("Memo No.57/2026/8, Dated Shillong; the 21 August, 2026.")[0] == "21 August 2026"
     assert find_dates('Dated Shillong, the 21"t August, 2026')[0] == "21 August 2026"
@@ -255,6 +262,15 @@ def test_flag_date_issues_tolerates_missing():
     assert notes == []
 
 
+def test_flag_date_issues_dedupes_on_refill():
+    from datetime import datetime
+    notes = flag_date_issues(datetime(2026, 8, 5), datetime(2026, 8, 10),
+                             datetime(2026, 8, 28), [])
+    renotes = flag_date_issues(datetime(2026, 8, 5), datetime(2026, 8, 10),
+                               datetime(2026, 8, 28), notes)
+    assert renotes == ["reply date precedes submission date"]
+
+
 def test_acquire_lock_single_instance(tmp_path):
     import os
     from legislative_extract.extract import _acquire_lock
@@ -284,6 +300,52 @@ def test_validate_lock_rejects_superseded(tmp_path):
     lock = tmp_path / "extract.lock"
     lock.write_text("1073741824", encoding="utf-8")
     assert _validate_lock(lock) is False
+
+
+def test_render_page_retries_lower_dpi(monkeypatch):
+    import pymupdf
+    from PIL import Image as PILImage
+    from legislative_extract import nvidia as nvidia_mod
+    calls = []
+
+    class FakePix:
+        def tobytes(self, fmt):
+            return b"fakepng"
+
+    class FakePage:
+        def get_pixmap(self, dpi):
+            calls.append(dpi)
+            if dpi > 100:
+                raise PILImage.DecompressionBombError("too big")
+            return FakePix()
+
+    class FakeDoc:
+        def __getitem__(self, i):
+            return FakePage()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(pymupdf, "open", lambda *a, **k: FakeDoc())
+    assert nvidia_mod.render_page("whatever.pdf", dpi=200) == b"fakepng"
+    assert calls[0] == 200 and calls[-1] <= 100
+
+
+def test_run_aborts_on_volume_failure(tmp_path, monkeypatch):
+    from pathlib import Path as PathCls
+    from legislative_extract import extract as ext_mod
+    csv_path = tmp_path / "q.csv"
+    csv_path.write_text("Document_Link,Session,Session_Date,Question_Number\n"
+                        "http://x/a.pdf,S1,01/Jan/2026,Q.No 1\n", encoding="utf-8")
+
+    def boom(self, pattern):
+        raise OSError(433, "device does not exist")
+    monkeypatch.setattr(PathCls, "rglob", boom)
+    assert ext_mod.run(str(csv_path), str(tmp_path / "pdfs"),
+                       str(tmp_path / "out"), "key") == 3
 
 
 def test_consensus_fill_survives_render_failure(tmp_path, monkeypatch):

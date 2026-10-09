@@ -75,10 +75,20 @@ def parse_date(value):
                 return None
         return None
     match = re.match(r"(\d{1,2})(?:st|nd|rd|th)?[\s/\-.]+([A-Za-z]+),?[\s/\-.]+(\d{4}|\d{2})", text)
-    if match and match.group(2).lower()[:3] in MONTHS:
-        year = int(match.group(3))
-        return datetime(year + 2000 if year < 100 else year,
-                        MONTHS[match.group(2).lower()[:3]], int(match.group(1)))
+    if match:
+        import difflib
+        frag = match.group(2).lower()[:3]
+        month = MONTHS.get(frag)
+        if month is None:
+            # OCR typos in month names ('Agust' for August): closest
+            # abbreviation at 0.6+ similarity (transpositions score ~0.67).
+            # Exact matches always win; day/month names ('mon') score <0.4.
+            close = difflib.get_close_matches(frag, MONTHS, n=1, cutoff=0.6)
+            month = MONTHS[close[0]] if close else None
+        if month:
+            year = int(match.group(3))
+            return datetime(year + 2000 if year < 100 else year,
+                            month, int(match.group(1)))
     return None
 
 
@@ -92,13 +102,19 @@ def flag_date_issues(reply_date, submission_date, sitting, needs_review):
 
     Pure function over datetimes so the policy is unit-testable; both
     extract_pdf (deterministic) and Layer 4 filtering share its flags.
+    Notes are de-duplicated: consensus_fill re-flags the merged pair,
+    which may already carry deterministic notes.
     """
+    notes = []
     if reply_date and submission_date and reply_date < submission_date:
-        needs_review.append("reply date precedes submission date")
+        notes.append("reply date precedes submission date")
     if reply_date and sitting and abs((reply_date - sitting).days) > 120:
-        needs_review.append(f"reply date {reply_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+        notes.append(f"reply date {reply_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
     if submission_date and sitting and abs((submission_date - sitting).days) > 120:
-        needs_review.append(f"submission date {submission_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+        notes.append(f"submission date {submission_date.strftime('%Y-%m-%d')} far from sitting {sitting.strftime('%Y-%m-%d')}")
+    for note in notes:
+        if note not in needs_review:
+            needs_review.append(note)
     return needs_review
 
 
@@ -388,6 +404,10 @@ def consensus_fill(pdf_path, key, record, row):
         filled = True
     record["confidence"] = verdict["confidence"]
     record["provenance"] = verdict["provenance"]
+    sitting = parse_session_date(sitting_iso)
+    flag_date_issues(parse_date(record["reply_date"]) if record["reply_date"] else None,
+                     parse_date(record["submission_date"]) if record["submission_date"] else None,
+                     sitting, record["needs_review"])
     record["needs_review"] = [
         note for note in record["needs_review"]
         if not (note.startswith("no reply date") and record["reply_date"])
@@ -507,7 +527,14 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
             name = str(row["Document_Link"]).rsplit("/", 1)[-1]
             if name in done or (limit and saved >= limit):
                 continue
-            matches = [m for m in Path(pdf_root).rglob(name) if m.is_file()]
+            try:
+                matches = [m for m in Path(pdf_root).rglob(name) if m.is_file()]
+            except OSError as exc:
+                # volume-level failure (the store vanished mid-run before):
+                # abort loudly so the run is retried, not silently starved.
+                print(f"ABORT: cannot list {pdf_root}: {exc!r}")
+                lock_path.unlink(missing_ok=True)
+                return 3
             if not matches:
                 continue
             try:
