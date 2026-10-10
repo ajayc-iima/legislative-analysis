@@ -27,6 +27,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Patch
 from textwrap import shorten
 
 REPO = Path(__file__).resolve().parent.parent
@@ -70,12 +71,14 @@ def style(ax, xlabel="", ylabel=""):
 
 
 def save(fig, chart_id, title, pillar, caption):
+    message = fig.axes[0].get_title() if fig.axes else ""
     for ext in ("png", "svg"):
         fig.savefig(OUT / f"{chart_id}.{ext}", dpi=150 if ext == "png" else None,
                     bbox_inches="tight")
     plt.close(fig)
     MANIFEST.append({"id": chart_id, "title": title, "pillar": pillar,
-                     "caption": caption, "files": [f"{chart_id}.png", f"{chart_id}.svg"]})
+                     "caption": caption, "message": message,
+                     "files": [f"{chart_id}.png", f"{chart_id}.svg"]})
 
 
 def main():
@@ -150,9 +153,16 @@ def main():
                 ax.text(j, i, mat[i][j], ha="center", va="center", fontsize=7,
                         color="white" if mat[i][j] > mat.max() / 2 else GRAY70)
     fig.colorbar(im, ax=ax, label="Questions")
-    ax.set_title("Department × session attention matrix", fontsize=13, color=NAVY, pad=12)
+    leaders = Counter()
+    for j in range(len(order)):
+        best = max(range(len(top15)), key=lambda i: mat[i][j])
+        if mat[best][j]:
+            leaders[top15[best]] += 1
+    lead_name, lead_n = leaders.most_common(1)[0] if leaders else ("—", 0)
+    ax.set_title(f"{lead_name.replace(' Department', '')} leads {lead_n} of "
+                 f"{len(order)} sessions", fontsize=13, color=NAVY, pad=12)
     save(fig, "02-dept-session-heatmap", "Attention matrix", "Pillars 1–2",
-         "Question counts for the top-15 departments across all 16 sessions. Source: CSV.")
+         f"Question counts for the top-15 departments across all {len(order)} sessions. Source: CSV.")
 
     # ── 3. Thematic bar ──
     themes = layers["layer1_themes"]["theme_counts"]
@@ -177,7 +187,10 @@ def main():
     for i, v in enumerate(vals):
         ax.text(v + 8, i, f"{v} ({100 * v / total:.1f}%)", va="center", fontsize=9, color=GRAY70)
     style(ax, xlabel="Questions (by asker's district; % of corpus)")
-    ax.set_title("Legislative attention by district", fontsize=13, color=NAVY, pad=12)
+    top_d, top_n = items[0]
+    ax.set_title(f"{top_d} leads with {top_n} questions "
+                 f"({100 * top_n / total:.1f}% of all questions)",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "04-districts", "Geographic attention", "Pillar 1",
          "Bar substitute for a choropleth (no boundary shapefile in repo); identical counts. Source: layer2_geography.json.")
 
@@ -195,7 +208,9 @@ def main():
     ax.set_xticks(range(len(order)))
     ax.set_xticklabels(slabels, rotation=45, ha="right", fontsize=8)
     ax.grid(axis="x", color=GRAY15, linewidth=0.6, linestyle="--", alpha=0.9)
-    ax.set_title("Recurring subjects across sessions (top 15)", fontsize=13, color=NAVY, pad=12)
+    ax.set_title(f"“{top[0]['subject']}” recurs most — asked in "
+                 f"{len(top[0]['sessions'])} of {len(order)} sittings",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "05-recurring-dots", "Sustained attention", "Pillar 1",
          "Each dot = the subject was asked in that session (exact normalized match). Source: layer5_resolution.json.")
 
@@ -216,7 +231,9 @@ def main():
     ax.legend(frameon=False, fontsize=9)
     ax.tick_params(axis="x", rotation=30, labelsize=8)
     style(ax, ylabel="Questions")
-    ax.set_title("Demand types by department (top 12)", fontsize=13, color=NAVY, pad=12)
+    ax.set_title(f"Information is the demand in {100 * layers['layer3_demands']['demand_counts']['Information'] / total:.0f}% "
+                 f"of questions; action demands cluster in works departments",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "06-demand-by-dept", "Demand types", "Pillar 2",
          "What each question demands: data, reasons, action, or follow-up. Source: layer3_demands.json.")
 
@@ -231,7 +248,8 @@ def main():
     ax.text(tenth_n + 1, max(qs) * 0.95, "11th Assembly", fontsize=9, color=GRAY70)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="Questions")
-    ax.set_title("Questions per session (10th → 11th Assembly)", fontsize=13, color=NAVY, pad=12)
+    ax.set_title(f"Question volume peaked at {max(qs)} in "
+                 f"{sess_labels[qs.index(max(qs))]}", fontsize=13, color=NAVY, pad=12)
     save(fig, "07-session-trend", "Volume trend", "Pillar 2",
          "Session-level question volume with the assembly transition shaded. Source: stats.json.")
 
@@ -245,7 +263,10 @@ def main():
     ax.barh([d[:36] for d, _ in combined], [v for _, v in combined], color=colors, edgecolor="white")
     ax.axvline(0, color=GRAY70, linewidth=1)
     style(ax, xlabel="Mean session-over-session change (questions/session)")
-    ax.set_title("Rising and declining departments", fontsize=13, color=NAVY, pad=12)
+    ax.set_title(f"{combined[-1][0].replace(' Department', '')} gains attention fastest "
+                 f"(+{combined[-1][1]:.1f}/session); "
+                 f"{combined[0][0].replace(' Department', '')} loses it "
+                 f"({combined[0][1]:.1f})", fontsize=13, color=NAVY, pad=12)
     save(fig, "08-dept-slopes", "Attention shifts", "Pillar 2",
          "Mean per-session change in question volume. Source: layer6_trends.json.")
 
@@ -268,8 +289,11 @@ def main():
     ax.legend(frameon=False, fontsize=9, title="Reply length")
     ax.tick_params(axis="x", rotation=30, labelsize=8)
     style(ax, ylabel="% of coded replies")
-    ax.set_title(f"Response substantiveness by department (n={overall['n_coded']} coded)",
-                 fontsize=13, color=NAVY, pad=12)
+    det = (overall["substantiveness"].get("detailed", 0)
+           + overall["substantiveness"].get("very_detailed", 0))
+    det_pct = 100 * det / overall["n_coded"] if overall["n_coded"] else 0
+    ax.set_title(f"{det_pct:.0f}% of coded replies are detailed or very detailed "
+                 f"(n={overall['n_coded']})", fontsize=13, color=NAVY, pad=12)
     save(fig, "09-substantiveness", "Response quality", "Pillar 2",
          f"Length bands over {overall['n_coded']} OCR-coded replies; regenerates as extraction accrues.")
 
@@ -291,7 +315,9 @@ def main():
                         xytext=(6, 6 if i % 2 == 0 else -12),
                         textcoords="offset points")
     style(ax, xlabel="Assurance-signal weight (mean)", ylabel="Evasion-signal weight (mean)")
-    ax.set_title("Assurance vs evasion by department", fontsize=13, color=NAVY, pad=12)
+    n_assure = sum(1 for a, e in zip(xs, ys) if a > e)
+    ax.set_title(f"Assurance language outweighs evasion in {n_assure} of "
+                 f"{len(xs)} departments", fontsize=13, color=NAVY, pad=12)
     save(fig, "10-assurance-evasion", "Response signals", "Pillar 2",
          "Bubble size = coded replies. Ported signal registries; weights, not scores.")
 
@@ -302,7 +328,12 @@ def main():
     ax.bar(sess_labels, cov, color=colors, edgecolor="white")
     ax.axhline(stats["overview"]["reply_coverage"], color=NAVY, linestyle="--",
                label=f"overall {stats['overview']['reply_coverage']}%")
-    ax.legend(frameon=False, fontsize=9)
+    handles, labels = ax.get_legend_handles_labels()
+    handles += [Patch(color=GREEN, label="≥99% covered"),
+                Patch(color=AMBER, label="80–99% covered"),
+                Patch(color=RED, label="<80% covered")]
+    labels += ["≥99% covered", "80–99% covered", "<80% covered"]
+    ax.legend(handles, labels, frameon=False, fontsize=9, ncol=2)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="% questions with a signed reply")
     ax.set_ylim(0, 105)
@@ -320,7 +351,8 @@ def main():
            color=[TRAJ_COLORS.get(k, GRAY40) for k in keys], edgecolor="white")
     style(ax, ylabel="Recurring families")
     ax.tick_params(axis="x", rotation=20, labelsize=9)
-    ax.set_title("Resolution trajectories of recurring subjects", fontsize=13, color=NAVY, pad=12)
+    ax.set_title(f"{res.get('stalled', 0)} of {sum(res.values())} recurring subjects "
+                 f"show no progress language", fontsize=13, color=NAVY, pad=12)
     save(fig, "12-resolution", "Resolution tracking", "Pillar 3",
          "Bar until replies resolve trajectories; a Sankey follows once resolved/progressing/stalled split. Source: layer5_resolution.json.")
 
@@ -341,7 +373,10 @@ def main():
         ax.set_xticklabels(slabels, rotation=45, ha="right", fontsize=8)
         ax.set_xlim(-0.5, len(order) - 0.5)
     style(ax, xlabel="First-appearance session")
-    ax.set_title("Emerging issues watchlist", fontsize=13, color=NAVY, pad=12)
+    n_em = len(emerging)
+    firsts = {e["first_session"] for e in emerging}
+    ax.set_title(f"{n_em} issues first surfaced in the {len(firsts)} most recent sessions",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "13-emerging", "Emerging issues", "Pillar 3",
          "First seen in the last 3 sessions, ≥2 occurrences, ≥2 askers. Source: layer6_trends.json.")
 
@@ -360,7 +395,9 @@ def main():
     ax.legend(frameon=False, fontsize=9)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="Questions")
-    ax.set_title("Starred vs Unstarred questions per session", fontsize=13, color=NAVY, pad=12)
+    star_total, unstar_total = sum(star), sum(unstar)
+    ax.set_title(f"Starred (oral) questions outweigh unstarred "
+                 f"{star_total:,} to {unstar_total:,}", fontsize=13, color=NAVY, pad=12)
     save(fig, "14-starred", "Question types", "Pillar 2",
          "Starred (oral) vs Unstarred (written) mix per session. Source: CSV Category field.")
 
@@ -374,7 +411,10 @@ def main():
         ax.annotate(m["mla"].split()[-1], (m["questions"], m["departments"]),
                     fontsize=9, color=GRAY70)
     style(ax, xlabel="Questions asked", ylabel="Departments questioned (breadth)")
-    ax.set_title("MLA activity: volume × breadth", fontsize=13, color=NAVY, pad=12)
+    top_m = mlas[0]
+    ax.set_title(f"{top_m['mla']} asks the most ({top_m['questions']}) with the "
+                 f"widest departmental reach ({top_m['departments']} departments)",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "15-mla-bubble", "Asker activity", "Pillar 1",
          "Each bubble = one MLA; size = questions. Top-8 surnames labelled. Source: stats.json.")
 
@@ -401,7 +441,11 @@ def main():
                 ax.text(j, i, hmat[i][j], ha="center", va="center", fontsize=7,
                         color="white" if hmat[i][j] > hmat.max() / 2 else GRAY70)
     fig.colorbar(im, ax=ax, label="Questions")
-    ax.set_title("Policy domains × departments", fontsize=13, color=NAVY, pad=12)
+    # largest single cell for the message title
+    mi, mj = np.unravel_index(int(np.argmax(hmat)), hmat.shape)
+    ax.set_title(f"“{top_themes[mi]}” × {top_depts[mj].replace(' Department', '')} "
+                 f"is the largest single pairing ({int(hmat[mi, mj])} questions)",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "16-theme-dept-heatmap", "Theme × department", "Pillar 1",
          "Which departments face which policy domains. Source: layer1_themes.json.")
 
@@ -416,7 +460,9 @@ def main():
                 va="center", fontsize=9, color=GRAY70)
     style(ax, xlabel=f"% of {total:,} questions naming the district "
                      f"({mentioned['share_with_any_mention_pct']}% name any place)")
-    ax.set_title("Districts named in question texts (top 10)", fontsize=13, color=NAVY, pad=12)
+    ax.set_title(f"{mentioned['share_with_any_mention_pct']}% of questions name a place — "
+                 f"{mdistricts[0]['place']} most often ({mdistricts[0]['share_pct']}%)",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "17-mentioned-places", "Mentioned geography", "Pillar 1",
          "What the text names (gazetteer scan) — complements MLA-seat geography. "
          "Source: layer2_geography.json.")
@@ -437,7 +483,12 @@ def main():
         ax.annotate(shorten(label, width=24, placeholder="…"), (x, y),
                     fontsize=8, color=GRAY70, xytext=(6, 4), textcoords="offset points")
     style(ax, xlabel="Budget allocation 2025–26 (₹ crore)", ylabel="Questions (2021–2026)")
-    ax.set_title("Legislative scrutiny vs budget allocation", fontsize=13, color=NAVY, pad=12)
+    big_b = blabels[int(np.argmax(bx))]
+    big_b_q = by[int(np.argmax(bx))]
+    rank = sum(1 for y in by if y > big_b_q) + 1
+    ax.set_title(f"Largest budget, {big_b.replace(' Department', '')} "
+                 f"(₹{max(bx):,.0f} crore), ranks #{rank} of {len(by)} in questions asked",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "18-budget-scatter", "Scrutiny vs resources", "Pillar 1",
          "Single-year budget vs multi-year questions (limitation noted); "
          "per-100-crore table in the dashboard. Sources: DEPT_BUDGET, CSV.")
@@ -460,7 +511,12 @@ def main():
     ax.legend(frameon=False, fontsize=9)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="Questions")
-    ax.set_title("Who asks: ruling vs opposition by session", fontsize=13, color=NAVY, pad=12)
+    opp_total_all = sum(opposition)
+    opp_led = sum(1 for o, r in zip(opposition, ruling) if o > r)
+    ax.set_title(f"The opposition asked {opp_total_all:,} of {total:,} questions "
+                 f"({100 * opp_total_all / total:.0f}%) and led questioning "
+                 f"in {opp_led} of {len(blabels)} sessions",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "19-opposition", "Opposition intensity", "Pillar 2",
          "Asker bloc from MLA party records; counts only, no effectiveness claims. "
          "Source: layer3_demands.json.")
@@ -491,7 +547,14 @@ def main():
     ax.legend(frameon=False, fontsize=8, ncol=3)
     ax.tick_params(axis="x", rotation=30, labelsize=8)
     style(ax, ylabel="% of coded replies")
-    ax.set_title("Where replies sit in the delivery pipeline", fontsize=13, color=NAVY, pad=12)
+    stage_overall = overall["stage_distribution"]
+    n_none = stage_overall.get("None evidenced", 0)
+    none_pct = 100 * n_none / overall["n_coded"] if overall["n_coded"] else 0
+    top_stage = max((s for s in stage_overall if s != "None evidenced"),
+                    key=lambda s: stage_overall.get(s, 0), default="—")
+    ax.set_title(f"{none_pct:.0f}% of replies evidence no delivery stage; "
+                 f"“{top_stage}” is the most-cited stage",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "20-exec-stages", "Execution stages", "Pillar 2",
          "Highest evidenced lifecycle stage per reply (negation-aware). "
          f"n={overall['n_coded']} coded replies.")
@@ -507,8 +570,13 @@ def main():
                    label=f"median {med} days")
         ax.axvline(30, color=AMBER, linestyle=":", linewidth=2, label="30-day mark")
         ax.legend(frameon=False, fontsize=9)
+        over30 = 100 * sum(1 for d in lats_all if d > 30) / len(lats_all)
+        ax.set_title(f"Median reply time: {med:g} days; "
+                     f"{over30:.0f}% take longer than 30 days",
+                     fontsize=13, color=NAVY, pad=12)
+    else:
+        ax.set_title("How long replies take", fontsize=13, color=NAVY, pad=12)
     style(ax, xlabel="Days from submission to reply", ylabel="Replies")
-    ax.set_title("How long replies take", fontsize=13, color=NAVY, pad=12)
     save(fig, "21-latency", "Reply latency", "Pillar 2",
          "Trustworthy date pairs only; flagged pairs excluded but kept in data.")
 

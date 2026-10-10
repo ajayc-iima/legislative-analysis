@@ -175,7 +175,12 @@ def build():
         f"Source: `data/dl_questions_raw.csv` ({total:,} questions in scope, "
         f"{len(order)} sessions, {len(sitting_dates)} sitting dates, 2021–2026)_")
     add("")
-    add("_Visual companion: `output/charts/index.html` — 16 charts (PNG + SVG) "
+    try:
+        n_charts = len(json.loads(
+            (REPO / "output/charts/manifest.json").read_text(encoding="utf-8")))
+    except OSError:
+        n_charts = 21
+    add(f"_Visual companion: `output/charts/index.html` — {n_charts} charts (PNG + SVG) "
         "with KPI cards and data tables; regenerate alongside this document._")
     add("")
     add("## Executive Summary")
