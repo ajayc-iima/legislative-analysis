@@ -29,9 +29,16 @@ CSS = """
 body { font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
        color:var(--ink); background:var(--bg); margin:0; line-height:1.55; }
 .wrap { max-width:1080px; margin:0 auto; padding:2rem 1.25rem 4rem; }
-header.hero { border-bottom:4px solid var(--navy); padding-bottom:1rem; margin-bottom:2rem; }
-header.hero h1 { color:var(--navy); margin:0 0 .25rem; font-size:1.9rem; }
-header.hero p { color:var(--mut); margin:.15rem 0; }
+header.hero { background:linear-gradient(135deg,#1A3C6E 0%,#2A8E9C 100%);
+              color:#fff; border-radius:12px; padding:1.8rem 1.6rem; margin-bottom:1rem; }
+header.hero h1 { margin:0 0 .4rem; font-size:2rem; }
+header.hero p { margin:.2rem 0; color:#DCEBF5; }
+header.hero code { background:rgba(255,255,255,.15); color:#fff; }
+nav.toc { position:sticky; top:0; z-index:10; background:var(--bg);
+          padding:.6rem 0; border-bottom:1px solid var(--line); margin-bottom:1rem; }
+nav.toc a { color:var(--navy); text-decoration:none; font-size:.88rem;
+            margin-right:1.1rem; font-weight:600; }
+nav.toc a:hover { text-decoration:underline; }
 .pillar { margin:2.5rem 0 1rem; }
 .pillar h2 { color:var(--navy); border-left:6px solid var(--gold);
              padding-left:.6rem; margin-bottom:.25rem; }
@@ -59,7 +66,21 @@ table.data tr:nth-child(even) td { background:#F4F6F9; }
 code { background:#EFF1F4; padding:.1rem .35rem; border-radius:4px; font-size:.85em; }
 footer { margin-top:3rem; color:var(--mut); font-size:.82rem;
          border-top:1px solid var(--line); padding-top:1rem; }
-@media print { body { background:#fff; } figure.card { break-inside:avoid; } }
+.brief { background:var(--card); border:1px solid var(--line); border-radius:10px;
+         padding:1rem 1.2rem; margin:0 0 1rem; }
+.brief h3 { margin:0 0 .2rem; color:var(--navy); }
+.brief .meta { font-size:.82rem; color:var(--mut); margin-bottom:.5rem; }
+.brief ul { margin:.3rem 0 .6rem 1.1rem; padding:0; font-size:.9rem; }
+.brief li { margin:.15rem 0; }
+.tag { display:inline-block; font-size:.75rem; background:#EAF2F8; color:var(--navy);
+       border-radius:20px; padding:.05rem .6rem; margin-right:.3rem; }
+.gap { display:flex; align-items:center; gap:.6rem; margin:.3rem 0; font-size:.85rem; }
+.gap .lbl { width:170px; flex:none; color:var(--mut); }
+.gap .bar { flex:1; background:#EDF0F3; border-radius:4px; height:14px; position:relative; }
+.gap .fill { background:var(--teal); height:14px; border-radius:4px; }
+.gap .fill.hot { background:#C0392B; }
+.gap .val { width:90px; flex:none; text-align:right; font-variant-numeric:tabular-nums; }
+@media print { body { background:#fff; } figure.card, .brief { break-inside:avoid; } nav.toc { display:none; } }
 """
 
 
@@ -75,6 +96,18 @@ def table(headers, rows):
         lines += ["<tr>" + "".join(f"<td>{esc(c)}</td>" for c in row) + "</tr>"]
     lines += ["</tbody></table>"]
     return "\n".join(lines)
+
+
+def _dept_coverage_gap(stats, dept, rows):
+    """% of a department's questions with no signed reply (unanswered demand)."""
+    from legislative_analysis.codebook import normalize_dept
+    n = sum(1 for r in rows if normalize_dept(r.get("Departments")) == dept)
+    if not n:
+        return 0
+    with_reply = sum(1 for r in rows
+                    if normalize_dept(r.get("Departments")) == dept
+                    and str(r.get("Document_Link") or "").lower().startswith("http"))
+    return round(100 * (1 - with_reply / n), 1)
 
 
 def figures(ids, manifest):
@@ -101,7 +134,11 @@ def main():
     total = ov["questions"]
     rows = load_rows(str(REPO / "data/dl_questions_raw.csv"))
     extracted = load_extracted()
-    overall, _dept_summary, _records = compute_layer4(rows, extracted)
+    overall, dept_summary, _records = compute_layer4(rows, extracted)
+    try:
+        briefs = json.loads((REPO / "output/anticipation/dept_briefs.json").read_text(encoding="utf-8"))
+    except OSError:
+        briefs = {}
 
     themes = sorted(layers["layer1_themes"]["theme_counts"].items(), key=lambda kv: -kv[1])
     demands = sorted(layers["layer3_demands"]["demand_counts"].items(), key=lambda kv: -kv[1])
@@ -123,6 +160,9 @@ def main():
              f"{total:,} questions · 16 sessions (2018–2026) · "
              f"{ov['departments']} departments · {ov['mlas']} MLAs · "
              f"replies OCR-extracted: {len(extracted):,}/2,246</p></header>")
+    L.append("<nav class='toc'><a href='#p1'>Attention</a><a href='#p2'>Oversight quality</a>"
+             "<a href='#p3'>Persistent challenges</a><a href='#anticipate'>Anticipate &amp; prepare</a>"
+             "<a href='#gaps'>Preparedness gaps</a><a href='#methods'>Methods</a></nav>")
 
     L.append("<div class='kpis'>")
     for value, label in [
@@ -136,16 +176,17 @@ def main():
     L.append("</div>")
 
     # Pillar 1
-    L.append("<section class='pillar'><h2>Pillar 1 — Patterns of Legislative Attention</h2>"
+    L.append("<section class='pillar' id='p1'><h2>Pillar 1 — Patterns of Legislative Attention</h2>"
              "<p>Which departments, policy domains, places and subjects receive the most attention.</p></section>")
     L.append(figures(["01-dept-attention", "02-dept-session-heatmap", "03-themes",
-                      "04-districts", "05-recurring-dots", "15-mla-bubble"], manifest))
+                      "16-theme-dept-heatmap", "04-districts", "05-recurring-dots",
+                      "15-mla-bubble"], manifest))
     L.append("<h3>Policy domains</h3>" + table(
         ["Theme", "Questions", "Share"],
         [[th, n, f"{100 * n / total:.1f}%"] for th, n in themes]))
 
     # Pillar 2
-    L.append("<section class='pillar'><h2>Pillar 2 — Dynamics and Quality of Oversight</h2>"
+    L.append("<section class='pillar' id='p2'><h2>Pillar 2 — Dynamics and Quality of Oversight</h2>"
              "<p>What is demanded, how attention moves over time, and how departments respond.</p></section>")
     L.append(figures(["06-demand-by-dept", "07-session-trend", "08-dept-slopes",
                       "14-starred", "11-coverage", "09-substantiveness",
@@ -155,7 +196,7 @@ def main():
         [[d, n, f"{100 * n / total:.1f}%"] for d, n in demands]))
 
     # Pillar 3
-    L.append("<section class='pillar'><h2>Pillar 3 — Persistent and Emerging Challenges</h2>"
+    L.append("<section class='pillar' id='p3'><h2>Pillar 3 — Persistent and Emerging Challenges</h2>"
              "<p>What recurs, what is stalled, and what is emerging.</p></section>")
     L.append(figures(["12-resolution", "13-emerging"], manifest))
     L.append("<h3>Emerging issues watchlist</h3>")
@@ -176,7 +217,60 @@ def main():
     else:
         L.append("<p>None coded as stalled yet — trajectories resolve as OCR replies accrue.</p>")
 
-    L.append("<section class='pillar'><h2>Methods &amp; limitations</h2></section>")
+    # Anticipation briefs
+    L.append("<section class='pillar' id='anticipate'><h2>Anticipate &amp; prepare by department</h2>"
+             "<p>Likely next-session questions and evidence-linked preparation steps. "
+             "Full briefs for all departments: <code>output/anticipation/dept_briefs.json</code>.</p></section>")
+    if briefs:
+        for dept in sorted(briefs, key=lambda d: -briefs[d]["questions"])[:8]:
+            b = briefs[dept]
+            L.append(f"<div class='brief'><h3>{esc(dept)}</h3>"
+                     f"<div class='meta'>{b['questions']} questions ({b['share_pct']}%) · "
+                     f"{b['sessions_active']} sessions · coverage {b['reply_coverage_pct']}% · "
+                     f"trend {b['trend_delta_per_session']:+.2f}/session · "
+                     f"{b['recurring_subjects']} recurring · {b['replies_coded']} replies coded</div>")
+            if b["anticipate"]:
+                L.append("<b>Anticipate:</b><ul>" + "".join(
+                    f"<li>{esc(a['subject'])} <span class='tag'>{esc(a['why'])}</span></li>"
+                    for a in b["anticipate"][:6]) + "</ul>")
+            if b["prepare"]:
+                L.append("<b>Prepare:</b><ul>" + "".join(
+                    f"<li>{esc(p)}</li>" for p in b["prepare"]) + "</ul>")
+            L.append("</div>")
+    else:
+        L.append("<p>Briefs not yet built — run <code>python scripts/build_anticipation.py</code>.</p>")
+
+    # Preparedness gap profiles
+    L.append("<section class='pillar' id='gaps'><h2>Preparedness gap profiles</h2>"
+             "<p>The gap is a profile, not a score: seven separately-reported dimensions per "
+             "department. Wider bars = further from answer-ready. Red marks the worst value per row.</p></section>")
+    gap_depts = [d for d in sorted(dept_summary, key=lambda d: -dept_summary[d]["n_replies"])[:10]
+                 if dept_summary[d]["n_replies"] >= 5]
+    if gap_depts:
+        for dept in gap_depts:
+            v = dept_summary[dept]
+            n = v["n_replies"]
+            low_spec = v["specificity"].get("low", 0)
+            dims = [
+                ("Unanswered demand", _dept_coverage_gap(stats, dept, rows), "%"),
+                ("Boilerplate replies", v["boilerplate_pct"], "%"),
+                ("Contradictory replies", v["contradiction_pct"], "%"),
+                ("Thin-evidence replies", round(100 * low_spec / n, 1) if n else 0, "%"),
+                ("Replies without timeline", round(100 - v["timeline_pct"], 1), "%"),
+                ("Replies without budget", round(100 - v["budget_pct"], 1), "%"),
+                ("Median latency", v["latency_median"] if v["latency_median"] is not None else 0, " days"),
+            ]
+            L.append(f"<div class='brief'><h3>{esc(dept)} <span class='tag'>{n} coded replies</span></h3>")
+            for label, val, unit in dims:
+                val = val or 0
+                L.append(f"<div class='gap'><span class='lbl'>{esc(label)}</span>"
+                         f"<span class='bar'><span class='fill' style='width:{min(val, 100):.0f}%'></span></span>"
+                         f"<span class='val'>{val}{esc(unit or '')}</span></div>")
+            L.append("</div>")
+    else:
+        L.append("<p>Gap profiles appear once departments have ≥5 coded replies.</p>")
+
+    L.append("<section class='pillar' id='methods'><h2>Methods &amp; limitations</h2></section>")
     L.append("<div class='note'><p><b>Reproducibility.</b> Thematic coding is keyword rules with "
              "department-sector tie-breaks (evidence per row); geography is MLA lookup plus a gazetteer scan; "
              "demand types are Information / Explanation / Action / Accountability; response quality is four "

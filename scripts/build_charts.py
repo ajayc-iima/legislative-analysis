@@ -363,6 +363,33 @@ def main():
     save(fig, "15-mla-bubble", "Asker activity", "Pillar 1",
          "Each bubble = one MLA; size = questions. Top-8 surnames labelled. Source: stats.json.")
 
+    # ── 16. Theme × department heatmap ──
+    tbd = layers["layer1_themes"]["department_by_theme"]
+    top_depts = list(tbd)[:12]
+    top_themes = [t for t, _ in Counter(
+        {t: sum(c.values()) for t, c in layers["layer1_themes"]["theme_by_department"].items()}
+    ).most_common(12)]
+    hmat = np.zeros((len(top_themes), len(top_depts)), dtype=int)
+    for i, theme in enumerate(top_themes):
+        for j, dept in enumerate(top_depts):
+            hmat[i][j] = layers["layer1_themes"]["theme_by_department"].get(theme, {}).get(dept, 0)
+    fig, ax = plt.subplots(figsize=(13, 8))
+    im = ax.imshow(hmat, aspect="auto", cmap="Blues", vmin=0)
+    ax.set_yticks(range(len(top_themes)))
+    ax.set_yticklabels([shorten(t, width=30, placeholder="…") for t in top_themes], fontsize=9)
+    ax.set_xticks(range(len(top_depts)))
+    ax.set_xticklabels([shorten(d, width=22, placeholder="…") for d in top_depts],
+                       rotation=30, ha="right", fontsize=8)
+    for i in range(len(top_themes)):
+        for j in range(len(top_depts)):
+            if hmat[i][j]:
+                ax.text(j, i, hmat[i][j], ha="center", va="center", fontsize=7,
+                        color="white" if hmat[i][j] > hmat.max() / 2 else GRAY70)
+    fig.colorbar(im, ax=ax, label="Questions")
+    ax.set_title("Policy domains × departments", fontsize=13, color=NAVY, pad=12)
+    save(fig, "16-theme-dept-heatmap", "Theme × department", "Pillar 1",
+         "Which departments face which policy domains. Source: layer1_themes.json.")
+
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, indent=2), encoding="utf-8")
     print(f"{len(MANIFEST)} charts -> {OUT}")
 
