@@ -31,10 +31,37 @@ CSV_PATH = REPO / "data/dl_questions_raw.csv"
 OUT_DIR = REPO / "output/layers"
 
 
+def load_extracted_limited():
+    """pdf basename -> {reply, reply_date, submission_date}; tolerant of D: flakes."""
+    import json as _json
+    for _ in range(3):
+        try:
+            path = REPO / "data/extracted/extracted.jsonl"
+            if not path.exists():
+                return {}
+            out = {}
+            with open(path, encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip().lstrip("﻿")
+                    if line:
+                        try:
+                            rec = _json.loads(line)
+                            out[rec.get("pdf", "")] = rec
+                        except ValueError:
+                            continue
+            return out
+        except OSError:
+            import time as _time
+            _time.sleep(10)
+    return {}
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     rows = base.load(str(CSV_PATH))
     subject_of = base.subject_of
+    extracted = load_extracted_limited()
+    print(f"extracted replies available: {len(extracted)}")
 
     # ── Session ordering (by first sitting date) ──
     order = longi.session_order_of(rows)
@@ -65,8 +92,8 @@ def main():
     classify_demand_all(rows, subject_of, recurring_keys)
     demand_counts = Counter(r["_demand_type"] for r in rows)
 
-    # ── L5: Recurring families (resolution tracking, text-free part) ──
-    families = longi.build_families(rows, subject_of, {}, order)
+    # ── L5: Recurring families (resolution tracking over extracted replies) ──
+    families = longi.build_families(rows, subject_of, extracted, order)
     resolution = longi.resolution_summary(families)
 
     # ── L6: Trends + emerging issues ──
@@ -87,6 +114,7 @@ def main():
         "theme_counts": dict(theme_counts.most_common()),
         "subtheme_counts": {f"{t} / {s}": c for (t, s), c in subtheme_counts.most_common()},
         "classification_methods": dict(method_counts),
+        **_theme_dept_matrix(rows),
     })
     dump("layer2_geography.json", {
         "region_counts": dict(region_counts.most_common()),
@@ -132,6 +160,23 @@ def _crosstab(rows, col, key):
     for r in rows:
         tab[str(r.get(col) or "")][r[key]] += 1
     return {k: dict(v.most_common()) for k, v in sorted(tab.items(), key=lambda kv: -sum(kv[1].values()))}
+
+
+def _theme_dept_matrix(rows):
+    """Theme × canonical-department counts, both orientations."""
+    fwd = defaultdict(Counter)
+    for r in rows:
+        fwd[r.get("_theme") or "General / Other"][normalize_dept(r.get("Departments"))] += 1
+    rev = defaultdict(Counter)
+    for theme, counter in fwd.items():
+        for dept, n in counter.items():
+            rev[dept][theme] += n
+    return {
+        "theme_by_department": {t: dict(c.most_common()) for t, c in
+                                sorted(fwd.items(), key=lambda kv: -sum(kv[1].values()))},
+        "department_by_theme": {d: dict(c.most_common()) for d, c in
+                                sorted(rev.items(), key=lambda kv: -sum(kv[1].values()))},
+    }
 
 
 def _report(rows, theme_counts, region_counts, scope_counts, demand_counts,

@@ -46,7 +46,7 @@ def load_extracted():
     if EXTRACTED.exists():
         with open(EXTRACTED, encoding="utf-8") as handle:
             for line in handle:
-                line = line.strip()
+                line = line.strip().lstrip("﻿")  # U+FEFF BOM on line 1 (first-ever run wrote utf-8-sig)
                 if line:
                     rec = json.loads(line)
                     out[rec.get("pdf", "")] = rec
