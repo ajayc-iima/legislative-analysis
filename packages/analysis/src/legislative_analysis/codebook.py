@@ -240,6 +240,8 @@ DEPT_THEME = {
 # Aliases for long portal forms absent from the legacy table.
 DEPT_NORM_EXTRA = {
     "department of labour, employment & skill development": "Labour",
+    "mining and geology": "Mining & Geology",
+    "information technology": "IT & Communication",
 }
 
 

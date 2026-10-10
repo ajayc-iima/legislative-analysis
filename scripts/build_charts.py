@@ -85,6 +85,7 @@ def main():
                  "layer5_resolution", "layer6_trends"):
         layers[name] = json.loads((REPO / "output/layers" / f"{name}.json").read_text(encoding="utf-8"))
     rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
+    total = len(rows)
     order = longi.session_order_of(rows)
     first_year = {}
     for r in rows:
@@ -114,10 +115,13 @@ def main():
     for i, v in enumerate(vals):
         share = next(d["share"] for d in depts if d["questions"] == v)
         ax.text(v + 2, i, f"{v} ({share}%)", va="center", fontsize=9, color=GRAY70)
-    style(ax, xlabel="Questions (share of 2,634)")
-    ax.set_title("Legislative attention by department (top 20)", fontsize=13, color=NAVY, pad=12)
+    style(ax, xlabel=f"Questions (share of {total:,})")
+    top3 = depts[:3]
+    top3_share = round(sum(d["share"] for d in top3), 1)
+    ax.set_title(f"{', '.join(d['department'].replace(' Department', '') for d in top3)} "
+                 f"draw {top3_share}% of all questions", fontsize=13, color=NAVY, pad=12)
     save(fig, "01-dept-attention", "Department attention", "Pillar 1",
-         "Questions per department with share of the 2,634-question corpus. Source: stats.json.")
+         "Questions per department with share of the corpus. Source: stats.json.")
 
     # ── 2. Department × session heatmap (top 15) ──
     top15 = [d["department"] for d in stats["departments"][:15]]
@@ -155,7 +159,10 @@ def main():
     fig, ax = plt.subplots(figsize=(10, 7.5))
     ax.barh([t for t, _ in items][::-1], [n for _, n in items][::-1], color=TEAL, edgecolor="white")
     style(ax, xlabel="Questions")
-    ax.set_title("Legislative attention by policy domain", fontsize=13, color=NAVY, pad=12)
+    top2 = items[:2]
+    top2_share = round(100 * sum(n for _, n in top2) / total, 1)
+    ax.set_title(f"{top2[0][0]} and {top2[1][0]} take {top2_share}% of all questions",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "03-themes", "Thematic attention", "Pillar 1",
          "Rule-based thematic coding (Layer 1); every row records its evidence. Source: layer1_themes.json.")
 
@@ -163,8 +170,12 @@ def main():
     districts = layers["layer2_geography"]["district_counts"]
     items = sorted(((k, v) for k, v in districts.items() if k), key=lambda kv: -kv[1])
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.barh([k for k, _ in items][::-1], [v for _, v in items][::-1], color=NAVY, edgecolor="white")
-    style(ax, xlabel="Questions (by asker's district)")
+    names = [k for k, _ in items][::-1]
+    vals = [v for _, v in items][::-1]
+    ax.barh(names, vals, color=NAVY, edgecolor="white")
+    for i, v in enumerate(vals):
+        ax.text(v + 8, i, f"{v} ({100 * v / total:.1f}%)", va="center", fontsize=9, color=GRAY70)
+    style(ax, xlabel="Questions (by asker's district; % of corpus)")
     ax.set_title("Legislative attention by district", fontsize=13, color=NAVY, pad=12)
     save(fig, "04-districts", "Geographic attention", "Pillar 1",
          "Bar substitute for a choropleth (no boundary shapefile in repo); identical counts. Source: layer2_geography.json.")
@@ -294,7 +305,9 @@ def main():
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="% questions with a signed reply")
     ax.set_ylim(0, 105)
-    ax.set_title("Reply coverage by session", fontsize=13, color=NAVY, pad=12)
+    full = sum(1 for c in cov if c >= 100)
+    ax.set_title(f"Reply coverage hit 100% in {full} of {len(cov)} sessions",
+                 fontsize=13, color=NAVY, pad=12)
     save(fig, "11-coverage", "Reply coverage", "Pillar 2",
          "Whether a signed reply PDF exists per session. Source: stats.json.")
 
@@ -390,6 +403,66 @@ def main():
     ax.set_title("Policy domains × departments", fontsize=13, color=NAVY, pad=12)
     save(fig, "16-theme-dept-heatmap", "Theme × department", "Pillar 1",
          "Which departments face which policy domains. Source: layer1_themes.json.")
+
+    # ── 17. Mentioned geography top 10 (text names, not MLA seats) ──
+    mentioned = layers["layer2_geography"]["mentioned"]
+    mdistricts = mentioned["districts"][:10]
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    ax.barh([m["place"] for m in mdistricts][::-1],
+            [m["questions"] for m in mdistricts][::-1], color=TEAL, edgecolor="white")
+    for i, m in enumerate([m for m in mdistricts][::-1]):
+        ax.text(m["questions"] + 3, i, f"{m['questions']} ({m['share_pct']}%)",
+                va="center", fontsize=9, color=GRAY70)
+    style(ax, xlabel=f"% of {total:,} questions naming the district "
+                     f"({mentioned['share_with_any_mention_pct']}% name any place)")
+    ax.set_title("Districts named in question texts (top 10)", fontsize=13, color=NAVY, pad=12)
+    save(fig, "17-mentioned-places", "Mentioned geography", "Pillar 1",
+         "What the text names (gazetteer scan) — complements MLA-seat geography. "
+         "Source: layer2_geography.json.")
+
+    # ── 18. Scrutiny vs budget ──
+    from legislative_analysis import reference_data as ref_data
+    budgets = ref_data.DEPT_BUDGET
+    q_by_dept = Counter(normalize_dept(r.get("Departments")) for r in rows)
+    bx, by, blabels = [], [], []
+    for dept, budget in budgets.items():
+        if dept in q_by_dept and q_by_dept[dept] >= 5:
+            bx.append(budget)
+            by.append(q_by_dept[dept])
+            blabels.append(dept)
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.scatter(bx, by, s=110, color=NAVY, alpha=0.7, edgecolors="white", zorder=3)
+    for x, y, label in zip(bx, by, blabels):
+        ax.annotate(shorten(label, width=24, placeholder="…"), (x, y),
+                    fontsize=8, color=GRAY70, xytext=(6, 4), textcoords="offset points")
+    style(ax, xlabel="Budget allocation 2025–26 (₹ crore)", ylabel="Questions (2021–2026)")
+    ax.set_title("Legislative scrutiny vs budget allocation", fontsize=13, color=NAVY, pad=12)
+    save(fig, "18-budget-scatter", "Scrutiny vs resources", "Pillar 1",
+         "Single-year budget vs multi-year questions (limitation noted); "
+         "per-100-crore table in the dashboard. Sources: DEPT_BUDGET, CSV.")
+
+    # ── 19. Opposition intensity by session ──
+    bbs = layers["layer3_demands"]["bloc_by_session"]
+    blabels = list(bbs)
+    ruling = [bbs[s]["counts"]["Ruling"] for s in blabels]
+    opposition = [bbs[s]["counts"]["Opposition"] for s in blabels]
+    unknown = [bbs[s]["counts"]["Unknown"] for s in blabels]
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+    ax.bar(slabels, ruling, label="Ruling", color=NAVY, edgecolor="white")
+    ax.bar(slabels, opposition, bottom=ruling, label="Opposition", color=GOLD, edgecolor="white")
+    ax.bar(slabels, unknown, bottom=np.array(ruling) + np.array(opposition),
+           label="Unknown", color=GRAY40, edgecolor="white")
+    for i, s in enumerate(blabels):
+        pct = bbs[s]["opposition_pct"]
+        ax.text(i, ruling[i] + opposition[i] + unknown[i] + 4, f"{pct:.0f}% opp",
+                ha="center", fontsize=8, color=GRAY70)
+    ax.legend(frameon=False, fontsize=9)
+    ax.tick_params(axis="x", rotation=45, labelsize=8)
+    style(ax, ylabel="Questions")
+    ax.set_title("Who asks: ruling vs opposition by session", fontsize=13, color=NAVY, pad=12)
+    save(fig, "19-opposition", "Opposition intensity", "Pillar 2",
+         "Asker bloc from MLA party records; counts only, no effectiveness claims. "
+         "Source: layer3_demands.json.")
 
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, indent=2), encoding="utf-8")
     print(f"{len(MANIFEST)} charts -> {OUT}")

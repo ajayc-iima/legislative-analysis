@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packages/analys
 
 from legislative_analysis import analysis as base
 from legislative_analysis.codebook import classify_all, normalize_dept, DEPT_THEME
-from legislative_analysis.geography import tag_all, lookup_mla
+from legislative_analysis.geography import (bloc_of, mentioned_tops, tag_all,
+                                               lookup_mla)
 from legislative_analysis.demand import classify_all as classify_demand_all
 from legislative_analysis import longitudinal as longi
 
@@ -87,10 +88,16 @@ def main():
     scope_counts = Counter(r["_scope"] for r in rows)
     mla_unmatched = sorted({r.get("Asked_By") or "" for r in rows
                               if not r.get("_mla_constituency")})
+    mentioned = mentioned_tops(rows)
+    for r in rows:
+        r["_bloc"] = bloc_of(r.get("Asked_By"), r.get("Assembly"))
 
     # ── L3: Demand-type taxonomy ──
     classify_demand_all(rows, subject_of, recurring_keys)
     demand_counts = Counter(r["_demand_type"] for r in rows)
+    bloc_counts = Counter(r["_bloc"] for r in rows)
+    bloc_by_session = _bloc_session_matrix(rows, order)
+    bloc_demand_mix = _crosstab(rows, "_bloc", "_demand_type")
 
     # ── L5: Recurring families (resolution tracking over extracted replies) ──
     families = longi.build_families(rows, subject_of, extracted, order)
@@ -121,11 +128,15 @@ def main():
         "district_counts": dict(district_counts.most_common()),
         "scope_counts": dict(scope_counts.most_common()),
         "mla_unmatched": mla_unmatched,
+        "mentioned": mentioned,
     })
     dump("layer3_demands.json", {
         "demand_counts": dict(demand_counts.most_common()),
         "demand_by_theme": _crosstab(rows, "_theme", "_demand_type"),
         "demand_by_department": _crosstab(rows, "Departments", "_demand_type"),
+        "bloc_counts": dict(bloc_counts.most_common()),
+        "bloc_by_session": bloc_by_session,
+        "bloc_demand_mix": bloc_demand_mix,
     })
     dump("layer5_resolution.json", {
         "n_families": len(families),
@@ -153,6 +164,23 @@ def main():
     print(f"  L3 demands: {dict(demand_counts)}")
     print(f"  L5 recurring families: {len(families)}")
     print(f"  L6 emerging issues: {len(emerging)}")
+
+
+def _bloc_session_matrix(rows, order):
+    """Per-session {Ruling, Opposition, Unknown} counts + opposition share."""
+    by_session = defaultdict(Counter)
+    for r in rows:
+        by_session[(r.get("Assembly") or "", r.get("Session") or "")][r["_bloc"]] += 1
+    out = {}
+    for sk in order:
+        counts = by_session.get(sk, Counter())
+        total = sum(counts.values())
+        out[f"{sk[0].split()[0]} {sk[1]}"] = {
+            "counts": {b: counts.get(b, 0) for b in ("Ruling", "Opposition", "Unknown")},
+            "questions": total,
+            "opposition_pct": round(100 * counts.get("Opposition", 0) / total, 1) if total else 0.0,
+        }
+    return out
 
 
 def _crosstab(rows, col, key):

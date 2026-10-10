@@ -180,21 +180,57 @@ def main():
     L.append("<section class='pillar' id='p1'><h2>Pillar 1 — Patterns of Legislative Attention</h2>"
              "<p>Which departments, policy domains, places and subjects receive the most attention.</p></section>")
     L.append(figures(["01-dept-attention", "02-dept-session-heatmap", "03-themes",
-                      "16-theme-dept-heatmap", "04-districts", "05-recurring-dots",
+                      "16-theme-dept-heatmap", "04-districts", "17-mentioned-places",
+                      "18-budget-scatter", "05-recurring-dots",
                       "15-mla-bubble"], manifest))
     L.append("<h3>Policy domains</h3>" + table(
         ["Theme", "Questions", "Share"],
         [[th, n, f"{100 * n / total:.1f}%"] for th, n in themes]))
+    geo = layers["layer2_geography"]
+    L.append("<h3>Geographic attention</h3>" + table(
+        ["Region (asker's seat)", "Questions", "Share"],
+        [[(r or "(unmatched)"), n, f"{100 * n / total:.1f}%"]
+         for r, n in sorted(geo["region_counts"].items(), key=lambda kv: -kv[1])]))
+    L.append(table(
+        ["District (asker's seat, top 10)", "Questions", "Share"],
+        [[d, n, f"{100 * n / total:.1f}%"]
+         for d, n in sorted(((k, v) for k, v in geo["district_counts"].items() if k),
+                            key=lambda kv: -kv[1])[:10]]))
+    L.append(table(
+        ["District named in question text (top 10)", "Questions", "Share of all questions"],
+        [[m["place"], m["questions"], f"{m['share_pct']}%"]
+         for m in geo["mentioned"]["districts"][:10]]))
+    L.append(f"<p>{geo['mentioned']['share_with_any_mention_pct']}% of questions name any place; "
+             "the rest are state-wide in wording. MLA-seat geography and text mentions are "
+             "two views of the same corpus — neither replaces the other.</p>")
 
     # Pillar 2
     L.append("<section class='pillar' id='p2'><h2>Pillar 2 — Dynamics and Quality of Oversight</h2>"
              "<p>What is demanded, how attention moves over time, and how departments respond.</p></section>")
     L.append(figures(["06-demand-by-dept", "07-session-trend", "08-dept-slopes",
-                      "14-starred", "11-coverage", "09-substantiveness",
+                      "14-starred", "19-opposition", "11-coverage", "09-substantiveness",
                       "10-assurance-evasion"], manifest))
     L.append("<h3>Demand mix</h3>" + table(
         ["Demand type", "Questions", "Share"],
         [[d, n, f"{100 * n / total:.1f}%"] for d, n in demands]))
+    bloc_sessions = layers["layer3_demands"]["bloc_by_session"]
+    L.append("<h3>Who asks: opposition share by session</h3>" + table(
+        ["Session", "Ruling", "Opposition", "Unknown", "Opposition share"],
+        [[s, v["counts"]["Ruling"], v["counts"]["Opposition"], v["counts"]["Unknown"],
+          f"{v['opposition_pct']}%"] for s, v in bloc_sessions.items()]))
+    from legislative_analysis import reference_data as ref_data
+    from legislative_analysis.codebook import normalize_dept as _norm
+    q_by_dept = {}
+    for r in rows:
+        q_by_dept[_norm(r.get("Departments"))] = q_by_dept.get(_norm(r.get("Departments")), 0) + 1
+    budget_rows = []
+    for dept, budget in sorted(ref_data.DEPT_BUDGET.items(), key=lambda kv: -kv[1]):
+        q = q_by_dept.get(dept, 0)
+        per100 = round(100 * q / budget, 1) if budget else 0
+        budget_rows.append([dept, q, f"{budget:,.0f}", per100])
+    L.append("<h3>Scrutiny vs budget (2025–26 allocations vs 2021–26 questions)</h3>" + table(
+        ["Department", "Questions", "Budget (₹ cr)", "Questions per ₹100 cr"],
+        budget_rows))
 
     # Pillar 3
     L.append("<section class='pillar' id='p3'><h2>Pillar 3 — Persistent and Emerging Challenges</h2>"

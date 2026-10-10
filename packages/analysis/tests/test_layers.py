@@ -119,6 +119,30 @@ def test_mla_lookup_unknown_returns_none():
     assert geography.lookup_mla("Nobody Here") is None
 
 
+def test_party_and_bloc_of_askers():
+    assert geography.party_of("Metbah Lyngdoh", "Eleventh Assembly") == "UDP"
+    assert geography.party_of("Metbah Lyngdoh", "Tenth Assembly") == "UDP"
+    assert geography.bloc_of("Metbah Lyngdoh", "Eleventh Assembly") == "Ruling"
+    assert geography.bloc_of("Mukul Sangma", "Eleventh Assembly") == "Opposition"
+    assert geography.bloc_of("Azad Zaman", "Tenth Assembly") == "Opposition"
+    assert geography.bloc_of("Nobody Here", "Eleventh Assembly") == "Unknown"
+    assert geography.bloc_of("Mehtab Chandee A Sangma", "Eleventh Assembly") == "Opposition"
+    assert geography.lookup_mla("Mehtab Chandee A Sangma")["constituency"] == "Gambegre"
+
+
+def test_mentioned_tops_counts_text_mentions():
+    rows = [
+        {"_mentioned_districts": ["east khasi hills"], "_mentioned_places": ["shillong"]},
+        {"_mentioned_districts": ["east khasi hills", "ri bhoi"], "_mentioned_places": []},
+        {"_mentioned_districts": [], "_mentioned_places": []},
+    ]
+    tops = geography.mentioned_tops(rows, top=10)
+    assert tops["districts"][0] == {"place": "east khasi hills", "questions": 2,
+                                    "share_pct": 66.7}
+    assert tops["questions_with_any_mention"] == 2
+    assert tops["share_with_any_mention_pct"] == 66.7
+
+
 def test_gazetteer_finds_district():
     places = geography.find_places("Jal Jeevan Mission in East Khasi Hills")
     assert any(p["place"] == "east khasi hills" and p["level"] == "district"

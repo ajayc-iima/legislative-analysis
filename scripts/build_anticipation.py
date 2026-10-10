@@ -151,8 +151,12 @@ def main():
          f"_Generated {datetime.now():%Y-%m-%d %H:%M} from {len(rows)} questions; "
          f"reply-text evidence covers {len(extracted)} extracted PDFs (regenerates as OCR accrues)._",
          "",
-         "> Each recommendation cites the measured value behind it. Thresholds are "
-         "presentation cut-points documented in `scripts/build_anticipation.py`, not weights.",
+         "> **How to read a brief.** *Anticipate* lists where the next questions will "
+         "come from: stalled recurring subjects first (boilerplate invites follow-ups), "
+         "then subjects with progress under way, then emerging issues. *Prepare* lists "
+         "what to fix before they arrive — each item cites the measured value behind it. "
+         "Thresholds are presentation cut-points documented in "
+         "`scripts/build_anticipation.py`, not weights.",
          ""]
     for dept in sorted(briefs, key=lambda d: -briefs[d]["questions"])[:20]:
         b = briefs[dept]

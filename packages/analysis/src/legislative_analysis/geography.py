@@ -93,6 +93,19 @@ def _mla_name(row):
     return re.sub(r"\s+", " ", str(row.get("Asked_By") or "").strip()).rstrip(",. ")
 
 
+# Portal spelling variants absent from the legacy alias lists.
+# Each entry mirrors an MLA_DB row (seat, constituency, [alias],
+# party-10th, party-11th, district, region); parties verified from
+# the matching MLA_DB row, names from CSV asker spellings.
+EXTRA_ALIASES = {
+    "mehtabchandeeasangma": (
+        56, "Gambegre", ["Mehtab Chandee A Sangma"], "NCP", "INC",
+        "West Garo Hills", "Garo Hills"),
+}
+
+MLA_ROWS = list(ref.MLA_DB) + list(EXTRA_ALIASES.values())
+
+
 def _norm_name(name):
     """Punctuation/space-insensitive name key."""
     return re.sub(r"[^a-z]", "", str(name or "").lower())
@@ -115,7 +128,7 @@ def lookup_mla(name):
         district, region = _resolve(constituency)
         return {"constituency": constituency, "district": district,
                 "region": region, "match": "historical"}
-    for entry in ref.MLA_DB:
+    for entry in MLA_ROWS:
         _seat, constituency, aliases, _p10, _p11, fb_district, fb_region = entry
         for alias in aliases:
             if _norm_name(alias) == target:
@@ -173,3 +186,66 @@ def tag_all(rows, subject_of):
     for row in rows:
         tag_row(row, subject_of)
     return rows
+
+
+def mentioned_tops(rows, top=10):
+    """Top mentioned districts/places across all question texts.
+
+    MLA-based geography assumes the question concerns the asker's own
+    seat; this counts what the TEXT actually names (gazetteer scan),
+    so state-wide questions contribute their explicit mentions and
+    constituency-specific ones count twice (once per method). Both
+    views are reported; neither replaces the other.
+    """
+    from collections import Counter
+    districts, places, any_mention = Counter(), Counter(), 0
+    for row in rows:
+        mentioned_districts = row.get("_mentioned_districts") or []
+        mentioned_places = row.get("_mentioned_places") or []
+        if mentioned_districts or mentioned_places:
+            any_mention += 1
+        districts.update(mentioned_districts)
+        places.update(mentioned_places)
+    total = len(rows) or 1
+
+    def share(count):
+        return round(100 * count / total, 1)
+
+    return {
+        "districts": [{"place": k, "questions": v, "share_pct": share(v)}
+                      for k, v in districts.most_common(top)],
+        "places": [{"place": k, "questions": v, "share_pct": share(v)}
+                   for k, v in places.most_common(top)],
+        "questions_with_any_mention": any_mention,
+        "share_with_any_mention_pct": share(any_mention),
+    }
+
+
+def party_of(asker_name, assembly):
+    """Asker's party in the relevant assembly (10th or 11th)."""
+    target = _norm_name(asker_name)
+    if not target:
+        return ""
+    eleventh = "Eleventh" in str(assembly or "")
+    for entry in MLA_ROWS:
+        for alias in entry[2]:
+            if _norm_name(alias) == target:
+                return entry[4] if eleventh else entry[3]
+    for alias, (_c, _d, _r, party) in ref.HISTORICAL_MLA_CONSTITUENCY.items():
+        if _norm_name(alias) == target:
+            return party
+    return {"azadzaman": "INC", "davidanongrum": "INC",
+            "lambormalngiang": "IND"}.get(target, "")
+
+
+def bloc_of(asker_name, assembly):
+    """Ruling / Opposition / Unknown per the legacy bloc sets."""
+    party = party_of(asker_name, assembly)
+    eleventh = "Eleventh" in str(assembly or "")
+    ruling = ref.RULING_11 if eleventh else ref.RULING_10
+    opposition = ref.OPPOSITION_11 if eleventh else ref.OPPOSITION_10
+    if party in ruling:
+        return "Ruling"
+    if party in opposition:
+        return "Opposition"
+    return "Unknown"
