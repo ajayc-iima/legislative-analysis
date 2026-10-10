@@ -517,6 +517,7 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                 if (r.get("Document_Link") or "").strip().lower().startswith("http")
                 and (not session or session.lower() in str(r.get("Session") or "").lower())]
     extracted, review, saved, failed = 0, 0, 0, 0
+    not_on_disk = 0
     err_path = out / "extract_errors.jsonl"
     out_of_scope = 0
 
@@ -548,6 +549,9 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                 lock_path.unlink(missing_ok=True)
                 return 3
             if not matches:
+                not_on_disk += 1
+                log_error(name, FileNotFoundError(f"no PDF on disk under {pdf_root}"))
+                print(f"  [MISS] {name}: no PDF on disk")
                 continue
             try:
                 record = extract_pdf(str(matches[0]), key,
@@ -574,7 +578,7 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                   f"{'REVIEW: ' + '; '.join(record['needs_review']) if record['needs_review'] else 'ok'}")
     print(f"extracted {extracted} ({review} need review), "
           f"skipped {len(done) - saved} already stored, {failed} failed, "
-          f"{out_of_scope} out of scope")
+          f"{not_on_disk} not on disk, {out_of_scope} out of scope")
     lock_path.unlink(missing_ok=True)
     return 0
 
