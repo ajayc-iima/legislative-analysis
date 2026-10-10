@@ -485,13 +485,16 @@ def _validate_lock(lock_path):
         return False
 
 
-def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True):
+def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True,
+        from_year=0):
     """Extract all PDFs listed in the CSV; skips basenames already stored.
 
     Per-PDF failures are caught and logged to extract_errors.jsonl
     so one bad scan cannot abort the run; the run is resume-friendly
     (already-stored basenames are skipped). A lockfile refuses a
     second concurrent run in the same output directory.
+    from_year skips rows sitting before that year (analysis starts
+    2021; pre-2021 PDFs are not processed at all).
     """
     lock_path = _acquire_lock(out_dir)
     if lock_path is None:
@@ -512,6 +515,7 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                 and (not session or session.lower() in str(r.get("Session") or "").lower())]
     extracted, review, saved, failed = 0, 0, 0, 0
     err_path = out / "extract_errors.jsonl"
+    out_of_scope = 0
 
     def log_error(name, exc):
         """Error logging must never kill the run (the volume flickered once)."""
@@ -527,6 +531,11 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
             name = str(row["Document_Link"]).rsplit("/", 1)[-1]
             if name in done or (limit and saved >= limit):
                 continue
+            if from_year:
+                sitting = parse_session_date(row.get("Session_Date"))
+                if sitting is not None and sitting.year < from_year:
+                    out_of_scope += 1
+                    continue
             try:
                 matches = [m for m in Path(pdf_root).rglob(name) if m.is_file()]
             except OSError as exc:
@@ -561,7 +570,8 @@ def run(csv_path, pdf_root, out_dir, key, limit=0, session="", consensus_on=True
                   f"rdate={record['reply_date'] or '?'} sdate={record['submission_date'] or '?'} "
                   f"{'REVIEW: ' + '; '.join(record['needs_review']) if record['needs_review'] else 'ok'}")
     print(f"extracted {extracted} ({review} need review), "
-          f"skipped {len(done) - saved} already stored, {failed} failed")
+          f"skipped {len(done) - saved} already stored, {failed} failed, "
+          f"{out_of_scope} out of scope")
     lock_path.unlink(missing_ok=True)
     return 0
 
@@ -612,9 +622,12 @@ def main(argv=None):
     parser.add_argument("--out", default="data/extracted")
     parser.add_argument("--limit", type=int, default=0, help="max PDFs (0 = all)")
     parser.add_argument("--session", default="", help="only sessions matching this text")
+    parser.add_argument("--from-year", type=int, default=0,
+                        help="skip rows sitting before this year (0 = all)")
     args = parser.parse_args(argv)
     key = nvidia.load_key()
     if not key:
         print("No NVIDIA API key (env NVIDIA_API_KEY or legacy config).")
         return 1
-    return run(args.csv, args.pdf_root, args.out, key, limit=args.limit, session=args.session)
+    return run(args.csv, args.pdf_root, args.out, key, limit=args.limit,
+               session=args.session, from_year=args.from_year)

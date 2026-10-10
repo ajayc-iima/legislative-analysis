@@ -399,6 +399,35 @@ def test_run_aborts_on_volume_failure(tmp_path, monkeypatch):
                        str(tmp_path / "out"), "key") == 3
 
 
+def test_run_from_year_skips_older_sittings(tmp_path, monkeypatch):
+    from pathlib import Path
+    from legislative_extract import extract as ext_mod
+    pdf_root = tmp_path / "pdfs"
+    pdf_root.mkdir()
+    (pdf_root / "old.pdf").write_bytes(b"%PDF-1.4 fake")
+    (pdf_root / "new.pdf").write_bytes(b"%PDF-1.4 fake")
+    csv_path = tmp_path / "q.csv"
+    csv_path.write_text("Document_Link,Session,Session_Date,Question_Number\n"
+                        "http://x/old.pdf,S0,09/Nov/2020,Q.No 1\n"
+                        "http://x/new.pdf,S1,08/Mar/2021,Q.No 2\n", encoding="utf-8")
+    seen = []
+
+    def fake_extract(pdf_path, key, session_date=""):
+        seen.append(Path(pdf_path).name)
+        return {"pdf": Path(pdf_path).name, "reply": "Sir, yes.", "parts": [],
+                "reply_date": "2021-03-08", "reply_date_raw": "",
+                "submission_date": "", "submission_date_raw": "",
+                "pages_ocr": 0, "needs_review": []}
+
+    monkeypatch.setattr(ext_mod, "extract_pdf", fake_extract)
+    monkeypatch.setattr(ext_mod, "consensus_fill", lambda *a, **k: False)
+    assert ext_mod.run(str(csv_path), str(pdf_root), str(tmp_path / "out"), "key",
+                       from_year=2021) == 0
+    assert seen == ["new.pdf"]
+    lines = (tmp_path / "out" / "extracted.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+
+
 def test_consensus_fill_survives_render_failure(tmp_path, monkeypatch):
     import pymupdf
     from legislative_extract import extract as ext_mod
