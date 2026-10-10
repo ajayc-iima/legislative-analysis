@@ -87,8 +87,11 @@ def parse_date(value):
             month = MONTHS[close[0]] if close else None
         if month:
             year = int(match.group(3))
-            return datetime(year + 2000 if year < 100 else year,
-                            month, int(match.group(1)))
+            try:
+                return datetime(year + 2000 if year < 100 else year,
+                                month, int(match.group(1)))
+            except ValueError:
+                return None  # e.g. '30 February': impossible calendar date
     return None
 
 

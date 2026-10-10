@@ -145,6 +145,12 @@ def test_parse_date_forgives_ocr_month_typos():
     assert parse_date("12 Sept 2026").strftime("%Y-%m-%d") == "2026-09-12"
 
 
+def test_parse_date_rejects_impossible_calendar_dates():
+    assert parse_date("30 February 2026") is None
+    assert parse_date("31 April 2026") is None
+    assert parse_date("32/01/2026") is None
+
+
 def test_find_dates_handles_ocr_variants():
     assert find_dates("Memo No.57/2026/8, Dated Shillong; the 21 August, 2026.")[0] == "21 August 2026"
     assert find_dates('Dated Shillong, the 21"t August, 2026')[0] == "21 August 2026"
