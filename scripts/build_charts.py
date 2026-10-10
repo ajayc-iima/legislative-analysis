@@ -17,6 +17,7 @@ Regenerate any time: python scripts/build_charts.py
 
 import csv
 import json
+import statistics
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -494,6 +495,22 @@ def main():
     save(fig, "20-exec-stages", "Execution stages", "Pillar 2",
          "Highest evidenced lifecycle stage per reply (negation-aware). "
          f"n={overall['n_coded']} coded replies.")
+
+    # ── 21. Latency histogram ──
+    lats_all = [x["latency"] for x in _records if x["latency"] is not None]
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    if lats_all:
+        bins = list(range(0, min(max(lats_all) + 5, 125), 5))
+        ax.hist(lats_all, bins=bins, color=NAVY, edgecolor="white", zorder=3)
+        med = statistics.median(lats_all)
+        ax.axvline(med, color=RED, linestyle="--", linewidth=2,
+                   label=f"median {med} days")
+        ax.axvline(30, color=AMBER, linestyle=":", linewidth=2, label="30-day mark")
+        ax.legend(frameon=False, fontsize=9)
+    style(ax, xlabel="Days from submission to reply", ylabel="Replies")
+    ax.set_title("How long replies take", fontsize=13, color=NAVY, pad=12)
+    save(fig, "21-latency", "Reply latency", "Pillar 2",
+         "Trustworthy date pairs only; flagged pairs excluded but kept in data.")
 
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, indent=2), encoding="utf-8")
     print(f"{len(MANIFEST)} charts -> {OUT}")

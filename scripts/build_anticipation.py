@@ -39,6 +39,7 @@ BUDGET_LOW = 30.0         # % replies citing a budget amount
 PROGRESS_LOW = 50.0       # % staged replies citing progress proof
 SPECIFICITY_LOW_HIGH = 40.0  # % low-specificity replies
 LATENCY_HIGH = 30         # median days submission -> reply
+LATE_HIGH = 10.0          # % replies dated after the sitting day
 COVERAGE_LOW = 80.0       # % questions with a signed reply
 
 
@@ -129,6 +130,9 @@ def main():
             if q["latency_median"] is not None and q["latency_median"] > LATENCY_HIGH:
                 prepare.append(f"Shorten reply turnaround "
                                f"(median {q['latency_median']} days submission to reply).")
+            if q.get("late_pct", 0) >= LATE_HIGH and q["n_replies"] >= 5:
+                prepare.append(f"Table replies before the sitting day "
+                               f"({q['late_pct']}% are dated after it).")
         if cov < COVERAGE_LOW and n >= 10:
             prepare.append(f"Clear the reply backlog ({cov}% of {n} questions have a signed reply).")
         if by_traj.get("stalled"):

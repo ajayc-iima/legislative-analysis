@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packages/analys
 from legislative_analysis import analysis as base
 from legislative_analysis.codebook import normalize_dept, DEPT_THEME
 from legislative_analysis.response import (
-    code_reply, dates_trustworthy, timeliness_summary, latency,
+    code_reply, dates_trustworthy, sitting_gaps, timeliness_summary, latency,
 )
 from legislative_analysis import longitudinal as longi
 
@@ -63,10 +63,11 @@ def compute_layer4(rows, extracted):
         if not rec or not rec.get("reply"):
             continue
         coding = code_reply(rec["reply"])
+        sitting = base.parse_date(r.get("Session_Date"))
         if dates_trustworthy(rec):
-            lat = latency(rec.get("reply_date"), rec.get("submission_date"))
+            gaps = sitting_gaps(rec.get("reply_date"), rec.get("submission_date"), sitting)
         else:
-            lat = None
+            gaps = {"latency_days": None, "notice_days": None, "late_reply": False}
             if rec.get("reply_date") and rec.get("submission_date"):
                 excluded_pairs += 1
         records.append({
@@ -75,11 +76,16 @@ def compute_layer4(rows, extracted):
             "session": f"{r.get('Assembly', '')} {r.get('Session', '')}",
             "reply_date": rec.get("reply_date", ""),
             "submission_date": rec.get("submission_date", ""),
-            "latency": lat,
+            "latency": gaps["latency_days"],
+            "notice_days": gaps["notice_days"],
+            "late_reply": gaps["late_reply"],
             **coding,
         })
 
     staged = [x for x in records if x["execution_stage"]["index"] >= 3]
+    notices = sorted(x["notice_days"] for x in records if x["notice_days"] is not None)
+    late_n = sum(1 for x in records if x["late_reply"])
+    dated_n = sum(1 for x in records if x["reply_date"])
     overall = {
         "n_coded": len(records),
         "excluded_pairs": excluded_pairs,
@@ -96,6 +102,9 @@ def compute_layer4(rows, extracted):
         "n_staged": len(staged),
         "stage_distribution": dict(Counter(x["execution_stage"]["stage"] for x in records)),
         "timeliness": timeliness_summary([{"_latency_days": x["latency"]} for x in records]),
+        "notice_median_days": statistics.median(notices) if notices else None,
+        "late_replies": late_n,
+        "late_share_pct": pct(late_n, dated_n),
     }
 
     by_dept = defaultdict(list)
@@ -105,6 +114,7 @@ def compute_layer4(rows, extracted):
     for d, xs in sorted(by_dept.items(), key=lambda kv: -len(kv[1])):
         n = len(xs)
         lats = sorted(x["latency"] for x in xs if x["latency"] is not None)
+        notices_d = sorted(x["notice_days"] for x in xs if x["notice_days"] is not None)
         staged_d = [x for x in xs if x["execution_stage"]["index"] >= 3]
         dept_summary[d] = {
             "n_replies": n,
@@ -121,6 +131,8 @@ def compute_layer4(rows, extracted):
             "n_staged": len(staged_d),
             "stage_distribution": dict(Counter(x["execution_stage"]["stage"] for x in xs)),
             "latency_median": statistics.median(lats) if lats else None,
+            "notice_median_days": statistics.median(notices_d) if notices_d else None,
+            "late_pct": pct(sum(x["late_reply"] for x in xs), n),
         }
     return overall, dept_summary, records
 
@@ -297,6 +309,12 @@ def build():
             f"{t['coverage']}% coverage): median {t['median_days']} days, "
             f"P75 {t['p75_days']} days, {t['share_over_30d']}% over 30 days, "
             f"{t['share_over_90d']}% over 90 days.")
+    if overall.get("notice_median_days") is not None:
+        add(f"**Notice**: departments get a median of {overall['notice_median_days']} days "
+            f"between question submission and the sitting.")
+    if overall.get("late_replies"):
+        add(f"**Late replies**: {overall['late_replies']} replies "
+            f"({overall['late_share_pct']}%) are dated after the sitting day.")
     if overall.get("excluded_pairs"):
         add(f"*{overall['excluded_pairs']} date pairs excluded from timeliness as "
             f"flagged implausible (far from sitting) or self-contradictory "

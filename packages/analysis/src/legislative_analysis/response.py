@@ -202,6 +202,21 @@ def latency(reply_iso, submission_iso):
     return None
 
 
+def sitting_gaps(reply_iso, submission_iso, sitting):
+    """Date gaps against the sitting day (all None-safe).
+
+    latency_days: submission -> reply (reply promptness to the department).
+    notice_days: submission -> sitting (warning the department got).
+    late_reply: reply tabled after the sitting day.
+    """
+    lat = latency(reply_iso, submission_iso)
+    sub = parse_iso(submission_iso)
+    rep = parse_iso(reply_iso)
+    notice = (sitting - sub).days if sitting and sub else None
+    return {"latency_days": lat, "notice_days": notice,
+            "late_reply": bool(sitting and rep and rep > sitting)}
+
+
 def timeliness_summary(records):
     """Aggregate latency over extracted records (Task 2.3)."""
     lats = [r["_latency_days"] for r in records if r.get("_latency_days") is not None]

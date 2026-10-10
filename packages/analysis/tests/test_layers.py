@@ -281,6 +281,17 @@ def test_latency_and_timeliness():
     assert summary["share_over_30d"] == 50.0
 
 
+def test_sitting_gaps_notice_and_late():
+    from datetime import datetime
+    sitting = datetime(2026, 8, 28)
+    gaps = resp_mod.sitting_gaps("2026-08-21", "2026-08-07", sitting)
+    assert gaps == {"latency_days": 14, "notice_days": 21, "late_reply": False}
+    gaps = resp_mod.sitting_gaps("2026-08-30", "2026-08-07", sitting)
+    assert gaps["late_reply"] is True
+    gaps = resp_mod.sitting_gaps("", "", None)
+    assert gaps == {"latency_days": None, "notice_days": None, "late_reply": False}
+
+
 def test_dates_trustworthy_clean_record():
     assert resp_mod.dates_trustworthy({"needs_review": []}) is True
     assert resp_mod.dates_trustworthy({"needs_review": ["no submission date found"]}) is True
