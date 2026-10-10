@@ -210,6 +210,54 @@ def test_split_reply_left_side():
     assert split_reply(words, 110, 100, side="left") == "Question?"
 
 
+def test_split_reply_single_column_ocr_lines_kept():
+    # 10_11_S_1005 regression: single-column reply, OCR line boxes span
+    # the split; the column pass keeps nothing, the fallback keeps lines.
+    words = [(198, 144, 1453, 167,
+              "Sir, there are no remaining 23% area allowances of health workers"),
+             (200, 176, 553, 197, "Meghalaya Pay Commission.")]
+    assert split_reply(words, 1654, 2339) == (
+        "Sir, there are no remaining 23% area allowances of health workers\n"
+        "Meghalaya Pay Commission.")
+
+
+def test_split_reply_single_column_native_words_kept():
+    # 10_11_US_954 regression: word-level boxes straddling just left of the
+    # split; first pass keeps nothing, fallback keeps the flowing lines.
+    words = [(60, 100, 150, 118, "Tetelia"),
+             (160, 100, 292, 118, "Byrnihat-line-sanctioned-here"),
+             (60, 130, 170, 148, "Shillong-line"),
+             (180, 130, 294, 148, "also-sanctioned-in-2006")]
+    assert split_reply(words, 612, 1000) == (
+        "Tetelia Byrnihat-line-sanctioned-here\n"
+        "Shillong-line also-sanctioned-in-2006")
+
+
+def test_split_reply_left_only_page_stays_empty():
+    # question column only, reply column genuinely empty: ample text but no
+    # straddling lines -> fallback must not mislabel it as reply.
+    words = [(60, 100, 200, 118, "Question-about-the-Tetelia-matter-here"),
+             (60, 130, 210, 148, "and-the-Byrnihat-sanction-details")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_split_reply_titles_alone_stay_empty():
+    # two short full-width title lines and nothing else: too little text
+    # to count as a flowing reply.
+    words = [(60, 100, 560, 118, "GOVERNMENT"),
+             (60, 130, 560, 148, "MEGHALAYA")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_split_reply_single_column_stops_at_footer():
+    words = [(60, 100, 300, 118, "Reply-line-one-with-meaningful-content-here"),
+             (60, 130, 300, 148, "Reply-line-two-with-meaningful-content-here"),
+             (60, 500, 300, 518, "Memo No. XYZ")]
+    assert split_reply(words, 612, 1000) == (
+        "Reply-line-one-with-meaningful-content-here\n"
+        "Reply-line-two-with-meaningful-content-here")
+
+
 def test_cut_footer_drops_memo_block():
     text = "Sir, yes.\nDated Shillong, the 26th August, 2026\nMemo No. X\nBy Order"
     assert cut_footer(text) == "Sir, yes."

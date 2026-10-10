@@ -159,20 +159,30 @@ def split_reply(words, width, height=0, side="right"):
     Both portal layouts put the reply right of mid-page; the memo block,
     copy-to list and signature sit below, so anything at/below the first
     footer marker line is excluded. Full-width (straddling) lines skipped.
+
+    Single-column fallback: some sittings file single-column replies whose
+    every line straddles the split, so the column pass keeps nothing. When
+    the right-side pass is empty, full lines above the footer are returned
+    ONLY if the text demonstrably flows across the gutter (a majority of
+    lines straddle it, with enough characters). A left-column-only page
+    (question asked, no reply given) has no straddling lines and still
+    returns "", so question text is never mislabelled as reply. Residual
+    risk (documented): a page holding nothing but two long full-width
+    title lines would be taken as reply text; such pages are pathological
+    in reply PDFs and still carry their REVIEW flags for dates.
     """
     if not words:
         return ""
     split = SPLIT_FRACTION * width
     height = height or 1
     # Full-width boxes (titles, banners) belong to neither column.
-    words = [w for w in words if not (w[0] < 0.3 * width and w[2] > 0.7 * width)]
-    if not words:
-        return ""
-    footer_ys = [(w[1] + w[3]) / 2 for w in words
+    col_words = [w for w in words
+                 if not (w[0] < 0.3 * width and w[2] > 0.7 * width)]
+    footer_ys = [(w[1] + w[3]) / 2 for w in col_words
                  if (w[1] + w[3]) / 2 > 0.35 * height and FOOTER_MARK.match(w[4])]
     cutoff = min(footer_ys, default=float("inf"))
     lines = defaultdict(list)
-    for word in words:
+    for word in col_words:
         lines[round((word[1] + word[3]) / 2)] += [word]
     parts = []
     for _, line in sorted(lines.items()):
@@ -193,7 +203,27 @@ def split_reply(words, width, height=0, side="right"):
                     and (w[1] + w[3]) / 2 < cutoff]
         if kept:
             parts.append(" ".join(kept))
-    return "\n".join(parts)
+    result = "\n".join(parts)
+    if result.strip() or side != "right":
+        return result
+    # Single-column fallback on the unfiltered boxes: the column pass above
+    # already dropped full-width lines, which is exactly what a single-column
+    # reply is made of.
+    body = defaultdict(list)
+    for w in words:
+        if (w[1] + w[3]) / 2 < cutoff:
+            body[round((w[1] + w[3]) / 2)] += [w]
+    flines = []
+    for _, line in sorted(body.items()):
+        text = " ".join(w[4] for w in sorted(line))
+        if text.strip() and not FOOTER_MARK.match(text):
+            flines.append(line)
+    n_chars = sum(len(w[4]) for line in flines for w in line)
+    straddling = sum(1 for line in flines
+                     if any(w[0] < split < w[2] for w in line))
+    if len(flines) >= 2 and n_chars >= 40 and straddling / len(flines) > 0.25:
+        return "\n".join(" ".join(w[4] for w in sorted(line)) for line in flines)
+    return result
 
 
 FOOTER_CUT = re.compile(
