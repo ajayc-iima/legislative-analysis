@@ -1,14 +1,10 @@
-"""Full analytical pipeline: the six layers of PLAN.md Tasks 1–3.
+"""Full analytical pipeline: the six layers of PLAN.md Tasks 1-3.
 
-Layer 1  thematic classification (codebook.py)      → themes per question
-Layer 2  geographic tagging (geography.py)          → MLA + gazetteer
-Layer 3  demand-type taxonomy (demand.py)           → information/explanation/action/accountability
-Layer 4  response quality coding (response.py)      → 4 dimensions per reply (needs OCR run)
-Layer 5  longitudinal tracking (longitudinal.py)    → resolution trajectories
-Layer 6  trends + emerging issues (longitudinal.py) → matrices, deltas, watchlist
-
-Every output is a plain JSON structure under output/layers/ plus
-a layers_report.md summary. Facts only: no composite scores.
+DEPRECATED: use scripts/run_layers.py (question-side layers) and
+scripts/build_compendium.py (Layer 4 + synthesis) instead. This module
+is retained so `python -m legislative_analysis --layers` keeps working,
+but it no longer receives new dimensions (progress evidence, execution
+stages, trustworthiness filtering live in scripts/).
 """
 
 import argparse

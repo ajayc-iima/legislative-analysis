@@ -116,6 +116,8 @@ def build_families(rows, subject_of, reply_lookup, session_order):
             rec = reply_lookup.get(name, {})
             ordered.append((sk, rec.get("reply", ""), rep))
         status, detail = code_trajectory([(s, t) for s, t, _ in ordered])
+        stage_names = [resp.code_stage(t)["stage"] for _s, t, _r in ordered]
+        stage_idx = [resp.code_stage(t)["index"] for _s, t, _r in ordered]
         out[key] = {
             "subject": re.sub(r"\s+", " ", subject_of(group[0]) or "").strip(),
             "sessions": [f"{s[0].split()[0]} {s[1]}" for s, _t, _r in ordered],
@@ -124,6 +126,9 @@ def build_families(rows, subject_of, reply_lookup, session_order):
             "askers": sorted({str(r.get("Asked_By") or "") for r in group}),
             "trajectory": status,
             "detail": detail,
+            "stage_first": stage_names[0] if stage_names else "None evidenced",
+            "stage_last": stage_names[-1] if stage_names else "None evidenced",
+            "stage_delta": (stage_idx[-1] - stage_idx[0]) if stage_idx else 0,
             "question_numbers": [str(r.get("Question_Number") or "") for r in group],
         }
     return out

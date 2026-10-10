@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO))
 from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows  # noqa: E402
 from legislative_analysis.codebook import normalize_dept  # noqa: E402
+from legislative_analysis.geography import tag_all  # noqa: E402
 from build_compendium import compute_layer4, load_extracted  # noqa: E402
 
 OUT = REPO / "output/anticipation"
@@ -35,6 +36,7 @@ BOILERPLATE_HIGH = 20.0   # % boilerplate replies
 CONTRADICTION_HIGH = 10.0  # % contradictory replies
 TIMELINE_LOW = 30.0       # % replies committing to a timeline
 BUDGET_LOW = 30.0         # % replies citing a budget amount
+PROGRESS_LOW = 50.0       # % staged replies citing progress proof
 SPECIFICITY_LOW_HIGH = 40.0  # % low-specificity replies
 LATENCY_HIGH = 30         # median days submission -> reply
 COVERAGE_LOW = 80.0       # % questions with a signed reply
@@ -49,6 +51,7 @@ def main():
     trends = get("layer6_trends")
 
     rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
+    tag_all(rows, base.subject_of)
     extracted = load_extracted()
     _overall, dept_quality, _records = compute_layer4(rows, extracted)
 
@@ -115,6 +118,10 @@ def main():
             if q["budget_pct"] < BUDGET_LOW:
                 prepare.append(f"Cite sanctioned/released amounts "
                                f"(only {q['budget_pct']}% of replies name one).")
+            if q.get("n_staged", 0) >= 5 and q.get("progress_evidence_pct", 100) < PROGRESS_LOW:
+                prepare.append(f"Cite physical progress proof (percentages, measurement "
+                               f"records, inspections) on project replies "
+                               f"(only {q['progress_evidence_pct']}% of {q['n_staged']} staged replies do).")
             low_spec = q["specificity"].get("low", 0)
             if q["n_replies"] and 100 * low_spec / q["n_replies"] >= SPECIFICITY_LOW_HIGH:
                 prepare.append(f"Back claims with numbers, dates or scheme names "
@@ -136,6 +143,11 @@ def main():
             "trend_delta_per_session": sl,
             "top_themes": [{"theme": t, "questions": c} for t, c in theme_top],
             "demand_mix": dmix,
+            "top_districts": [{"district": d, "questions": c} for d, c in
+                              Counter(m for r in rows
+                                      if normalize_dept(r.get("Departments")) == dept
+                                      for m in [r.get("_mla_district") or ""]
+                                      if m).most_common(5)],
             "recurring_subjects": len(touching),
             "trajectories": {k: len(v) for k, v in by_traj.items()},
             "anticipate": anticipate,

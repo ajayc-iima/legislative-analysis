@@ -50,6 +50,58 @@ RESPONSIBLE_RE = re.compile(
     r"\b(?:directed|instructed|asked)\b", re.I)
 
 
+# ── Execution stages (project lifecycle keyword map) ──
+# Ordered: a reply evidencing stage N+1 has moved past stage N.
+# Adapted from the legacy report's reference table (observable
+# keywords only — no scores, no stage "probabilities").
+STAGES = [
+    ("Concept/Proposal", [r"\bdetailed project report\b", r"\bdpr\b", r"\bproposal\b"]),
+    ("Administrative Processing", [r"\bsubmitted\b", r"\bforwarded\b", r"\bprocessed\b",
+                                   r"\bexamined\b"]),
+    ("Sanction/Funding", [r"\bsanctioned\b", r"\bfunds released\b", r"\ballocation\b",
+                          r"\bamount released\b", r"\bapproved estimate\b"]),
+    ("Approval", [r"\bapproved\b", r"\bcleared\b"]),
+    ("Procurement", [r"\btender floated\b", r"\btender\b"]),
+    ("Execution/Award", [r"\bwork order\b", r"\bawarded\b"]),
+    ("Implementation", [r"\bimplementation\b", r"\bimplementing\b",
+                        r"\bwork in progress\b", r"\bin progress\b"]),
+    ("Completion", [r"\bcompleted\b", r"\bcommissioned\b", r"\bfinished\b",
+                    r"\boperational\b"]),
+]
+NEGATION_RE = re.compile(r"\b(?:no|not|nil|without|yet to be|is yet)\b", re.I)
+
+# Physical progress proof: percentages, measurement and inspection records.
+PROGRESS_EVIDENCE_RE = re.compile(
+    r"\b\d{1,3}\s*%|percent\s+complete|\bphysical progress\b|\bfinancial progress\b|"
+    r"\bmeasurement book\b|\brunning bill\b|\butilization certificate\b|"
+    r"\binspection\b|\binspected\b|\bsite visit\b|\bgeo-tagged\b|\bphotograph\b", re.I)
+
+
+def _stage_hit(pattern, text):
+    """Keyword hit unless negated within the preceding 40 characters."""
+    for match in re.finditer(pattern, text, re.I):
+        window = text[max(0, match.start() - 40):match.start()]
+        if not NEGATION_RE.search(window):
+            return True
+    return False
+
+
+def code_stage(reply_text):
+    """Highest evidenced project-lifecycle stage (0 = none).
+
+    Returns {stage, index, hits}: the top stage with an unnegated
+    keyword hit, so 'no proposal exists' does not count as Concept.
+    """
+    hits = []
+    for index, (stage, patterns) in enumerate(STAGES, start=1):
+        found = sorted({p.replace(r"\b", "") for p in patterns if _stage_hit(p, str(reply_text or ""))})
+        if found:
+            hits.append({"stage": stage, "index": index, "keywords": found})
+    if not hits:
+        return {"stage": "None evidenced", "index": 0, "hits": []}
+    return {"stage": hits[-1]["stage"], "index": hits[-1]["index"], "hits": hits}
+
+
 def _signals(text, registry):
     """Count signal hits; returns (total_weight, {label: count})."""
     total, found = 0, {}
@@ -94,6 +146,7 @@ def code_reply(reply_text):
                   or "amount_sanctioned" in assurance
                   or "funding_action" in assurance)
     has_responsible = bool(RESPONSIBLE_RE.search(text))
+    has_progress_evidence = bool(PROGRESS_EVIDENCE_RE.search(text))
 
     # Contradiction: positive claim + negative qualifier in one paragraph
     paragraphs = [p for p in text.splitlines() if len(p.strip()) > 20]
@@ -114,7 +167,9 @@ def code_reply(reply_text):
                           "paragraphs": contradictions[:3]},
         "actionability": {"has_timeline": has_timeline,
                           "has_budget": has_budget,
-                          "has_responsible_party": has_responsible},
+                          "has_responsible_party": has_responsible,
+                          "has_progress_evidence": has_progress_evidence},
+        "execution_stage": code_stage(text),
     }
 
 

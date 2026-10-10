@@ -244,6 +244,33 @@ def test_response_timeline_detected():
     assert coding["actionability"]["has_timeline"] is True
 
 
+def test_execution_stage_ranks_highest_evidence():
+    coding = resp_mod.code_reply(
+        "Sir, the proposal was submitted and sanctioned. Tenders were floated "
+        "and the work order awarded. Work is in progress.")
+    assert coding["execution_stage"]["stage"] == "Implementation"
+    assert coding["execution_stage"]["index"] == 7
+
+
+def test_execution_stage_ignores_negated_claims():
+    coding = resp_mod.code_reply("Sir, no proposal exists and no funds were sanctioned.")
+    assert coding["execution_stage"]["index"] == 0
+    assert coding["execution_stage"]["stage"] == "None evidenced"
+
+
+def test_execution_stage_completion():
+    coding = resp_mod.code_reply("Sir, the bridge has been completed and commissioned.")
+    assert coding["execution_stage"]["stage"] == "Completion"
+
+
+def test_progress_evidence_detected():
+    coding = resp_mod.code_reply(
+        "Sir, physical progress is 78% and the measurement book has been verified.")
+    assert coding["actionability"]["has_progress_evidence"] is True
+    coding = resp_mod.code_reply("Sir, the matter is under consideration.")
+    assert coding["actionability"]["has_progress_evidence"] is False
+
+
 def test_latency_and_timeliness():
     assert resp_mod.latency("2026-08-21", "2026-08-07") == 14
     assert resp_mod.latency("", "2026-08-07") is None
@@ -339,6 +366,27 @@ def test_build_families_codes_resolution_from_replies():
     }
     families = longitudinal.build_families(rows, base.subject_of, reply_lookup, order)
     assert next(iter(families.values()))["trajectory"] == "resolved"
+
+
+def test_build_families_tracks_stage_progression():
+    rows = [
+        _row(Assembly="A10", Session="S1", Subject="A new bridge project here",
+             Departments="Power", Asked_By="X", Question_Number="Q.No 10",
+             Document_Link="http://x/a.pdf"),
+        _row(Assembly="A11", Session="S2", Subject="A new bridge project here",
+             Departments="Power", Asked_By="Y", Question_Number="Q.No 10",
+             Document_Link="http://x/b.pdf"),
+    ]
+    order = [("A10", "S1"), ("A11", "S2")]
+    reply_lookup = {
+        "a.pdf": {"reply": "The proposal has been submitted for examination."},
+        "b.pdf": {"reply": "The bridge work has been completed and commissioned."},
+    }
+    families = longitudinal.build_families(rows, base.subject_of, reply_lookup, order)
+    fam = next(iter(families.values()))
+    assert fam["stage_first"] == "Administrative Processing"
+    assert fam["stage_last"] == "Completion"
+    assert fam["stage_delta"] == 6
 
 
 def test_department_trends_normalizes_variants():

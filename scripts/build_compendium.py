@@ -79,6 +79,7 @@ def compute_layer4(rows, extracted):
             **coding,
         })
 
+    staged = [x for x in records if x["execution_stage"]["index"] >= 3]
     overall = {
         "n_coded": len(records),
         "excluded_pairs": excluded_pairs,
@@ -91,6 +92,9 @@ def compute_layer4(rows, extracted):
         "timeline_pct": pct(sum(x["actionability"]["has_timeline"] for x in records), len(records)),
         "budget_pct": pct(sum(x["actionability"]["has_budget"] for x in records), len(records)),
         "responsible_pct": pct(sum(x["actionability"]["has_responsible_party"] for x in records), len(records)),
+        "progress_evidence_pct": pct(sum(x["actionability"]["has_progress_evidence"] for x in staged), len(staged)),
+        "n_staged": len(staged),
+        "stage_distribution": dict(Counter(x["execution_stage"]["stage"] for x in records)),
         "timeliness": timeliness_summary([{"_latency_days": x["latency"]} for x in records]),
     }
 
@@ -101,6 +105,7 @@ def compute_layer4(rows, extracted):
     for d, xs in sorted(by_dept.items(), key=lambda kv: -len(kv[1])):
         n = len(xs)
         lats = sorted(x["latency"] for x in xs if x["latency"] is not None)
+        staged_d = [x for x in xs if x["execution_stage"]["index"] >= 3]
         dept_summary[d] = {
             "n_replies": n,
             "substantiveness": dict(Counter(x["substantiveness"]["band"] for x in xs)),
@@ -112,6 +117,9 @@ def compute_layer4(rows, extracted):
             "timeline_pct": pct(sum(x["actionability"]["has_timeline"] for x in xs), n),
             "budget_pct": pct(sum(x["actionability"]["has_budget"] for x in xs), n),
             "responsible_pct": pct(sum(x["actionability"]["has_responsible_party"] for x in xs), n),
+            "progress_evidence_pct": pct(sum(x["actionability"]["has_progress_evidence"] for x in staged_d), len(staged_d)),
+            "n_staged": len(staged_d),
+            "stage_distribution": dict(Counter(x["execution_stage"]["stage"] for x in xs)),
             "latency_median": statistics.median(lats) if lats else None,
         }
     return overall, dept_summary, records
@@ -278,6 +286,10 @@ def build():
     add(f"| Commits to a timeline | {overall['timeline_pct']}% |")
     add(f"| Cites a budget amount | {overall['budget_pct']}% |")
     add(f"| Names a responsible party | {overall['responsible_pct']}% |")
+    add(f"| Cites progress proof (of {overall['n_staged']} project-stage replies) | "
+        f"{overall['progress_evidence_pct']}% |")
+    add(f"| Delivery-pipeline position | "
+        f"{', '.join(f'{k} {v}' for k, v in sorted(overall['stage_distribution'].items(), key=lambda kv: -kv[1])[:4])} |")
     add("")
     t = overall.get("timeliness", {})
     if t.get("n"):

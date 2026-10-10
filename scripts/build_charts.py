@@ -464,6 +464,37 @@ def main():
          "Asker bloc from MLA party records; counts only, no effectiveness claims. "
          "Source: layer3_demands.json.")
 
+    # ── 20. Execution stages by department ──
+    stage_order = ["None evidenced", "Concept/Proposal", "Administrative Processing",
+                   "Sanction/Funding", "Approval", "Procurement", "Execution/Award",
+                   "Implementation", "Completion"]
+    stage_depts = [d for d, _ in
+                   sorted(((d, v) for d, v in dept_summary.items()),
+                          key=lambda kv: -kv[1]["n_replies"])[:10]]
+    stage_colors = {"None evidenced": GRAY40, "Concept/Proposal": "#D6C9A8",
+                    "Administrative Processing": GOLD, "Sanction/Funding": AMBER,
+                    "Approval": "#AF7AC5", "Procurement": "#5DADE2",
+                    "Execution/Award": TEAL, "Implementation": "#1E8449",
+                    "Completion": GREEN}
+    fig, ax = plt.subplots(figsize=(12, 7))
+    bottom = np.zeros(len(stage_depts))
+    for stage in stage_order:
+        vals = np.array([dept_summary[d]["stage_distribution"].get(stage, 0)
+                         for d in stage_depts])
+        totals = np.array([dept_summary[d]["n_replies"] for d in stage_depts], dtype=float)
+        pcts = np.divide(vals, totals, out=np.zeros_like(vals, dtype=float),
+                         where=totals > 0) * 100
+        ax.bar([shorten(d, width=26, placeholder="…") for d in stage_depts], pcts,
+               bottom=bottom, label=stage, color=stage_colors[stage], edgecolor="white")
+        bottom += pcts
+    ax.legend(frameon=False, fontsize=8, ncol=3)
+    ax.tick_params(axis="x", rotation=30, labelsize=8)
+    style(ax, ylabel="% of coded replies")
+    ax.set_title("Where replies sit in the delivery pipeline", fontsize=13, color=NAVY, pad=12)
+    save(fig, "20-exec-stages", "Execution stages", "Pillar 2",
+         "Highest evidenced lifecycle stage per reply (negation-aware). "
+         f"n={overall['n_coded']} coded replies.")
+
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, indent=2), encoding="utf-8")
     print(f"{len(MANIFEST)} charts -> {OUT}")
 

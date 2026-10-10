@@ -209,7 +209,7 @@ def main():
              "<p>What is demanded, how attention moves over time, and how departments respond.</p></section>")
     L.append(figures(["06-demand-by-dept", "07-session-trend", "08-dept-slopes",
                       "14-starred", "19-opposition", "11-coverage", "09-substantiveness",
-                      "10-assurance-evasion"], manifest))
+                      "10-assurance-evasion", "20-exec-stages"], manifest))
     L.append("<h3>Demand mix</h3>" + table(
         ["Demand type", "Questions", "Share"],
         [[d, n, f"{100 * n / total:.1f}%"] for d, n in demands]))
