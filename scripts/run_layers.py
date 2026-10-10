@@ -58,7 +58,7 @@ def load_extracted_limited():
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    rows = base.load(str(CSV_PATH))
+    rows = base.scope_rows(base.load(str(CSV_PATH)))
     subject_of = base.subject_of
     extracted = load_extracted_limited()
     print(f"extracted replies available: {len(extracted)}")

@@ -32,6 +32,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "packages/analysis/src"))
 sys.path.insert(0, str(REPO))
 
+from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows, parse_date  # noqa: E402
 from legislative_analysis.codebook import normalize_dept  # noqa: E402
 from legislative_analysis import longitudinal as longi  # noqa: E402
@@ -83,7 +84,7 @@ def main():
     for name in ("layer1_themes", "layer2_geography", "layer3_demands",
                  "layer5_resolution", "layer6_trends"):
         layers[name] = json.loads((REPO / "output/layers" / f"{name}.json").read_text(encoding="utf-8"))
-    rows = load_rows(str(REPO / "data/dl_questions_raw.csv"))
+    rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     order = longi.session_order_of(rows)
     first_year = {}
     for r in rows:

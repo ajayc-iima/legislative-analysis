@@ -55,6 +55,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     rows = base.load(args.csv)
+    rows = base.scope_rows(rows)
     subject_of = base.subject_of
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)

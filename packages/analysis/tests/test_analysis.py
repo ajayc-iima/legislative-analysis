@@ -100,6 +100,20 @@ def test_parse_date_formats():
     assert parse_date("garbage") is None
 
 
+def test_scope_rows_drops_pre_2021():
+    from legislative_analysis.analysis import scope_rows
+    rows = [
+        {"Session_Date": "09/Nov/2020"},
+        {"Session_Date": "08/Mar/2021"},
+        {"Session_Date": "17/Feb/2026"},
+        {"Session_Date": ""},
+        {"Session_Date": "garbage"},
+    ]
+    kept = scope_rows(rows)
+    assert len(kept) == 2
+    assert all(r["Session_Date"] != "09/Nov/2020" for r in kept)
+
+
 def test_plural_folding_keeps_ss_us_is_words_intact():
     from legislative_analysis.analysis import normalize_subject
     assert normalize_subject("languages") == "language"

@@ -19,6 +19,26 @@ DEFAULT_OUT = "output"
 TOP_N = 20
 MIN_SUBJECT_CHARS = 10
 
+# Analysis scope: sessions before 2021 have reply coverage of 0-16%
+# (Autumn 2018 and Budget 2019: zero signed replies), too sparse for
+# reply-side analysis. Every driver filters through scope_rows().
+SCOPE_FROM_YEAR = 2021
+
+
+def in_scope(row, from_year=SCOPE_FROM_YEAR):
+    """True when the row's sitting date falls inside the analysis window."""
+    sitting = parse_date(row.get("Session_Date"))
+    return sitting is not None and sitting.year >= from_year
+
+
+def scope_rows(rows, from_year=SCOPE_FROM_YEAR):
+    """Drop rows outside the analysis window (pre-2021 by default).
+
+    Recurrence, trends and diversity are all measured WITHIN the
+    window: a subject asked in 2020 and 2021 counts as new in 2021.
+    """
+    return [row for row in rows if in_scope(row, from_year)]
+
 MONTHS = {m.lower(): i for i, m in enumerate(
     "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(), 1)}
 
@@ -288,7 +308,7 @@ def main(argv=None):
     if args.layers:
         from . import layers as layers_mod
         return layers_mod.main(["--csv", args.csv, "--out-dir", args.out_dir])
-    stats = analyze(load(args.csv), top=args.top)
+    stats = analyze(scope_rows(load(args.csv)), top=args.top)
     report = write_report(stats, args.out_dir, source=args.csv)
     print(f"{stats['overview']['questions']} questions -> {report}")
     return 0

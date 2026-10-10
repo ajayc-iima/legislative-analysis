@@ -39,7 +39,7 @@ SAMPLE_COLS = ["question_id", "assembly", "session", "department", "mla",
 
 def draw_sample(n=100, seed=7):
     import random
-    rows = base.load(str(REPO / "data/dl_questions_raw.csv"))
+    rows = base.scope_rows(base.load(str(REPO / "data/dl_questions_raw.csv")))
     classify_all(rows, base.subject_of)
     tag_all(rows, base.subject_of)
     seen = defaultdict(set)

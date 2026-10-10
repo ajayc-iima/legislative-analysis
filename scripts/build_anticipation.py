@@ -22,6 +22,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "packages/analysis/src"))
 sys.path.insert(0, str(REPO))
 
+from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows  # noqa: E402
 from legislative_analysis.codebook import normalize_dept  # noqa: E402
 from build_compendium import compute_layer4, load_extracted  # noqa: E402
@@ -47,7 +48,7 @@ def main():
     resolution = get("layer5_resolution")
     trends = get("layer6_trends")
 
-    rows = load_rows(str(REPO / "data/dl_questions_raw.csv"))
+    rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     extracted = load_extracted()
     _overall, dept_quality, _records = compute_layer4(rows, extracted)
 

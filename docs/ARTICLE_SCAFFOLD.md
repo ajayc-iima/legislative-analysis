@@ -130,8 +130,9 @@ across the two assemblies.
 ## 5. Data and methods
 
 ### 5.1 Data
-- Questions: NeVA Digital Library, 2,634 rows, 15 fields,
-  Assemblies 10–11 (2018–2026), 16 sessions, 84 sitting dates.
+- Questions: NeVA Digital Library, 2,217 rows in scope (sittings from
+  2021 onwards; pre-2021 reply coverage is 0–16%), 11 sessions,
+  69 sitting dates, Assemblies 10 (tail) and 11.
 - Replies: 2,246 signed PDFs (85.3% coverage), scanned images.
 - OCR: NVIDIA nemotron-ocr-v1 with a three-reader consensus
   (ocr-v1 + parse + vision-11b) and a reasoning supervisor for

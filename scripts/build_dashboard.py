@@ -17,6 +17,7 @@ sys.path.insert(0, str(REPO / "packages/analysis/src"))
 sys.path.insert(0, str(REPO))
 
 from build_compendium import compute_layer4, load_extracted, pct  # noqa: E402
+from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows  # noqa: E402
 
 CHARTS = REPO / "output/charts"
@@ -132,7 +133,7 @@ def main():
         layers[name] = json.loads((LAYERS / f"{name}.json").read_text(encoding="utf-8"))
     ov = stats["overview"]
     total = ov["questions"]
-    rows = load_rows(str(REPO / "data/dl_questions_raw.csv"))
+    rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     extracted = load_extracted()
     overall, dept_summary, _records = compute_layer4(rows, extracted)
     try:
@@ -157,7 +158,7 @@ def main():
              "no composite scores. Every figure is reproducible from "
              "<code>data/dl_questions_raw.csv</code> and <code>data/extracted/extracted.jsonl</code>.</p>"
              f"<p>Generated {datetime.now():%Y-%m-%d %H:%M} · "
-             f"{total:,} questions · 16 sessions (2018–2026) · "
+             f"{total:,} questions in scope · {len(stats['sessions'])} sessions (2021–2026) · "
              f"{ov['departments']} departments · {ov['mlas']} MLAs · "
              f"replies OCR-extracted: {len(extracted):,}/2,246</p></header>")
     L.append("<nav class='toc'><a href='#p1'>Attention</a><a href='#p2'>Oversight quality</a>"

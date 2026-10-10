@@ -128,7 +128,7 @@ def mean(vals):
 
 def build():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    rows = base.load(str(REPO / "data/dl_questions_raw.csv"))
+    rows = base.scope_rows(base.load(str(REPO / "data/dl_questions_raw.csv")))
     order = longi.session_order_of(rows)
 
     themes = load_json("layer1_themes.json")
@@ -144,6 +144,7 @@ def build():
     stats = json.loads((REPO / "output/stats.json").read_text(encoding="utf-8"))
     n_depts = stats["overview"]["departments"]
     n_replies = stats["overview"]["with_reply"]
+    sitting_dates = {d for d in (base.parse_date(r.get("Session_Date")) for r in rows) if d}
     L = []
     add = L.append
 
@@ -151,10 +152,10 @@ def build():
     add("# COMPENDIUM: Legislative Oversight in Meghalaya")
     add("")
     add(f"_Generated: {datetime.now():%Y-%m-%d %H:%M} · "
-        f"Source: `data/dl_questions_raw.csv` (2,634 questions, 16 sessions, "
-        f"84 sitting dates, Assemblies 10–11, 2018–2026)_")
+        f"Source: `data/dl_questions_raw.csv` ({total:,} questions in scope, "
+        f"{len(order)} sessions, {len(sitting_dates)} sitting dates, 2021–2026)_")
     add("")
-    add("_Visual companion: `output/charts/index.html` — 15 charts (PNG + SVG) "
+    add("_Visual companion: `output/charts/index.html` — 16 charts (PNG + SVG) "
         "with KPI cards and data tables; regenerate alongside this document._")
     add("")
     add("## Executive Summary")
@@ -170,6 +171,10 @@ def build():
     add(f"- **Demand mix**: {demands['demand_counts'] and ', '.join(f'{k} {v}' for k, v in sorted(demands['demand_counts'].items(), key=lambda kv: -kv[1]))}")
     add(f"- **Recurring subjects**: {resolution['n_families']} families recur across sessions")
     add(f"- **Emerging issues**: {len(trends.get('emerging_issues', []))} on the watchlist")
+    add(f"- **Scope**: sittings from 2021 onwards. Pre-2021 reply coverage is 0–16% "
+        f"(two sessions have zero signed replies) — too sparse for reply-side analysis. "
+        f"Recurrence, trends and diversity are measured within the window: a subject asked "
+        f"in 2020 and 2021 counts as new in 2021.")
     add("")
     add("> **Design note.** Every figure in this Compendium is reproducible from the "
         "source CSV and the extracted-reply JSONL. Dimensions are reported separately; "
@@ -354,7 +359,8 @@ def build():
     add("## Data sources")
     add("")
     add("- Questions: NeVA Digital Library portal, scraped to "
-        "`data/dl_questions_raw.csv` (2,634 rows, 15 columns)")
+        "`data/dl_questions_raw.csv`; analysis scope is sittings from 2021 "
+        "onwards (pre-2021 reply coverage 0–16%)")
     add("- Reply PDFs: 2,246 signed scans under `data/pdfs/` (85.3% of questions)")
     add("- Reply text/dates: NVIDIA OCR (nemotron-ocr-v1) with a three-reader "
         "consensus (ocr-v1 + parse + vision-11b) and a reasoning supervisor "
