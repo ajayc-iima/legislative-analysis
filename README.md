@@ -137,6 +137,9 @@ python scripts/build_compendium.py    # -> output/compendium/COMPENDIUM.md
 # 15 publication charts (PNG + SVG, World Bank palette) + HTML dashboard
 python scripts/build_charts.py     # -> output/charts/ (manifest.json)
 python scripts/build_dashboard.py  # -> output/charts/index.html
+
+# final shareable report (single self-contained HTML file)
+python scripts/build_report.py     # -> output/report/index.html
 ```
 
 Open `output/charts/index.html` in any browser (no server, no

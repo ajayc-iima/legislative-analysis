@@ -320,10 +320,12 @@ def main():
              "own seat. regenerate everything with "
              "<code>python scripts/run_layers.py &amp;&amp; "
              "python scripts/build_compendium.py &amp;&amp; "
-             "python scripts/build_charts.py &amp;&amp; python scripts/build_dashboard.py</code>.</p></div>")
+             "python scripts/build_charts.py &amp;&amp; python scripts/build_dashboard.py &amp;&amp; "
+             "python scripts/build_report.py</code>.</p></div>")
 
-    L.append("<footer>Legislative Analysis · Meghalaya Assembly 10–11 (2018–2026) · "
+    L.append("<footer>Legislative Analysis · Meghalaya Assembly (2021–2026 scope) · "
              "Compendium text: <code>output/compendium/COMPENDIUM.md</code> · "
+             "Shareable report: <code>output/report/index.html</code> · "
              "Data: <code>output/layers/*.json</code></footer>")
     L.append("</div></body></html>")
 
