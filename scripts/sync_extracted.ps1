@@ -7,7 +7,7 @@
 #   powershell -File scripts/sync_extracted.ps1                 # once
 #   powershell -File scripts/sync_extracted.ps1 -Loop 60 -Every 50  # sync
 #     whenever the source grows by >=50 records (polled each minute)
-param([int]$Loop = 0, [int]$Every = 50)
+param([int]$Loop = 0, [int]$Every = 25)
 $REPO = Split-Path $PSScriptRoot -Parent
 $SRC = "C:\Users\chou_\AppData\Local\Temp\opencode\extract_run\extracted.jsonl"
 $DST = Join-Path $REPO "data\extracted\extracted.jsonl"
