@@ -12,11 +12,13 @@
 ## 1. The contribution in one paragraph
 
 Using the complete question record of the Meghalaya Legislative
-Assembly across two assemblies (2,634 questions, 16 sessions,
-2018–2026) and OCR-extracted replies to 2,246 of them, we show
-that legislative questioning is a measurable instrument of
-executive accountability at the subnational level, but that the
-*quality* of the information executives return varies
+Assembly from 2021 onwards (2,217 questions, 11 sessions, 69
+sitting dates, Assemblies 10 (tail) and 11) and OCR-extracted reply
+texts for all 2,186 scoped PDFs (98.6% question coverage; 20
+flagged-empty records withheld or unreadable, each with its reason
+recorded), we show that legislative questioning is a measurable
+instrument of executive accountability at the subnational level,
+but that the *quality* of the information executives return varies
 systematically by department and over time. We introduce a
 transparent, reproducible coding framework — thematic,
 geographic, demand-type, response-quality, and longitudinal —
@@ -133,16 +135,23 @@ across the two assemblies.
 - Questions: NeVA Digital Library, 2,217 rows in scope (sittings from
   2021 onwards; pre-2021 reply coverage is 0–16%), 11 sessions,
   69 sitting dates, Assemblies 10 (tail) and 11.
-- Replies: 2,246 signed PDFs (85.3% coverage), scanned images.
+- Replies: 2,186/2,186 scoped signed PDFs extracted (98.6% of
+  questions carry a reply PDF); 20 records flagged-empty with
+  recorded reasons (unreadable scans, dateless pages, mixed Q&A
+  pages quarantined per `data/review/quarantine_list.csv`).
 - OCR: NVIDIA nemotron-ocr-v1 with a three-reader consensus
   (ocr-v1 + parse + vision-11b) and a reasoning supervisor for
   unresolved dates; mechanical gates (parseable, ordered,
   within ±120 days of the sitting date) apply to every winner.
+  Single-column and short-reply layouts recovered by a
+  gutter-guarded splitter fallback; mojibake font layers
+  detected and re-OCR'd; bulletin/question headers skipped,
+  mixed pages refused rather than stored.
   Validated: 12/12 reply dates correct against hand-annotated
-  truth; 0 confident errors.
+  truth; 0 confident errors; 55–60 package tests green.
 
 ### 5.2 Coding framework (six layers)
-1. **Thematic** — 17 policy domains, keyword rules with
+1. **Thematic** — 18 policy domains, keyword rules with
    department-sector tie-break; evidence recorded per row.
 2. **Geographic** — MLA→constituency→district→region (60 seats,
    typo-tolerant) plus a gazetteer scan; scope flags
@@ -173,26 +182,70 @@ across the two assemblies.
   trade-off; never over-merges).
 - MLA-based geography assumes questions concern the asker's own
   seat; the gazetteer scan runs alongside it.
-- Reply coverage is 85.3%; non-replies are themselves a
+- Reply coverage is 98.6%; non-replies are themselves a
   preparedness signal (unanswered demand).
 
 ---
 
-## 6. Findings (to be populated from the Compendium)
+## 6. Findings (populated from the final Compendium run, 2026-10-12;
+all figures computed live in `output/report/index.html`)
 
-```
-6.1 Patterns of attention (Pillar 1)
-    - departmental concentration; thematic distribution;
-      geographic distribution; sustained attention
-6.2 Response quality (Pillar 2)
-    - substantiveness, specificity, assurance vs evasion,
-      boilerplate, contradictions, timeliness — by department
-6.3 Resolution and learning (Pillar 3)
-    - resolution trajectories; stalled issues; emerging watchlist
-6.4 The preparedness gap (synthesis)
-    - department-level gap profiles; session-level trends;
-      which departments are wide on multiple dimensions
-```
+### 6.1 Patterns of attention (Pillar 1)
+- **Concentration.** Education (222, 10.0%), Health & Family
+  Welfare (219, 9.9%) and Public Works (Roads) (185, 8.3%) take
+  28.2% of all questions; Governance & Administration (297) and
+  Roads & Infrastructure (264) carry 25.3%.
+- **Opposition-led.** Opposition members asked 1,768 of 2,217
+  questions (79.7%).
+- **Demand mix.** Information 1,629 (73.5%); Action 366
+  (16.5%); Explanation 118 (5.3%); Accountability 104 (4.7%).
+- **Oral bias.** Starred 1,667 (75.2%) vs Unstarred 550 (24.8%).
+- **Members.** Mukul Sangma asks most (230 across 24
+  departments); 57 members total.
+- **Geography.** By asker seat: Khasi Hills 1,130 (51.0%),
+  Garo Hills 795 (35.9%), Ri Bhoi 242 (10.9%), Jaintia Hills
+  50 (2.3%); 64.3% of questions are state-wide in scope;
+  37.8% name any place in-text.
+- **Movement.** Steepest rise: Education (+3.0/sitting);
+  steepest fall: Chief Minister (−3.2/sitting).
+
+### 6.2 Response quality (Pillar 2; n=2,166 coded replies)
+- **Substance vs specificity.** 40.3% detailed/very detailed;
+  63.3% high specificity — length is not the gap, specifics are
+  thinner than length suggests.
+- **Commitment scarcity.** Timeline 2.0%, responsible party
+  4.8%, budget figure 17.8%; progress evidence 21.6% of the
+  523 replies evidencing a delivery stage.
+- **Discipline signals.** Boilerplate 0.7%, self-contradiction
+  5.7%; assurance weight 3.22 vs evasion 0.23.
+- **Speed.** 1,408 trustworthy date pairs: median 7 days,
+  P75 9 days, 0.1% over 30 days; median departmental notice
+  14 days; 3 late replies (0.2%).
+- **Delivery evidence.** 70.0% of replies evidence no delivery
+  stage; most-cited stages are Sanction/Funding (175),
+  Completion (158), Implementation (125).
+
+### 6.3 Resolution and learning (Pillar 3)
+- **Trajectories (66 recurring subjects).** Stalled 41,
+  resolved 14, progressing 6, mixed 4, regressed 1.
+- **Watchlist (6).** Mission Education; Ration Card;
+  Replacement of Transformers; Revamped Distribution Sector
+  Scheme; Tourism Infrastructure Projects; Villages without
+  Electricity — all first seen in the three latest sessions.
+
+### 6.4 The preparedness gap (synthesis)
+- Coverage is near-universal (98.6%) so *unanswered demand*
+  is thin; the gap lives in *commitments* (2.0% timelines)
+  and *delivery evidence* (70.0% stage-less), not in silence.
+- Vagueness is low on average (0.7% boilerplate) but
+  specificity is uneven (36.7% below high) — departments
+  answer at length without always answering concretely.
+- 41 of 66 recurring subjects show no progress language:
+  persistence without resolution is the corpus's central
+  oversight failure.
+- Department profiles (not rankings) are in the report's
+  Pillar 2 tables and the 12 published briefs
+  (`output/anticipation/dept_briefs.json`).
 
 ---
 
@@ -238,6 +291,6 @@ across the two assemblies.
 
 ---
 
-*This scaffold is generated alongside the Compendium. Findings
-sections populate automatically once the OCR extraction run
-completes and `build_compendium.py` is re-run.*
+*Findings (§6) populated from the final full-corpus run
+(2026-10-12): 2,186/2,186 scoped reply texts, 0 failed.
+Literature review (§4) still to draft.*
