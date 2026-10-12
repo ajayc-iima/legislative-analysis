@@ -32,6 +32,9 @@ def main(argv=None):
     parser.add_argument("--backup-dir", default=str(DEFAULT_BACKUP))
     parser.add_argument("--denylist",
                         default=str(REPO / "data/review/quarantine_list.csv"))
+    parser.add_argument("--force", action="store_true",
+                        help="re-apply even when the record already carries a "
+                             "quarantine note (e.g. after a text refresh)")
     args = parser.parse_args(argv)
 
     denied = {}
@@ -56,13 +59,14 @@ def main(argv=None):
             continue
         n_hit += 1
         notes = rec.get("needs_review", [])
-        if any(n.startswith("quarantined:") for n in notes):
+        if not args.force and any(n.startswith("quarantined:") for n in notes):
             n_already += 1
             continue
         if (rec.get("reply") or "").strip():
             n_text += 1
         rec["reply"] = ""
         rec["parts"] = []
+        notes = [n for n in notes if not n.startswith("quarantined:")]
         notes.append(NOTE)
         rec["needs_review"] = notes
 

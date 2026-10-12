@@ -101,31 +101,105 @@ across the two assemblies.
 
 ---
 
-## 4. Literature review skeleton
+## 4. Literature review (drafted 2026-10-12; verified citations)
 
-### 4.1 Question time as information extraction
-- Parliamentary question time as a mechanism for extracting
-  information from executives (classic legislative studies).
-- The distinction between *asking* and *answering*; the
-  executive's discretion over reply content.
+Status: **drafted with verified references.** Every entry below was
+checked against publisher/repository records on 2026-10-12; entries
+marked *[journal TBD]* are preprints or repository versions and need a
+final source before submission.
 
-### 4.2 Subnational legislative capacity in India
-- State assemblies as under-studied oversight institutions;
-  the NeVA digital library as a new data source.
-- Meghalaya as a small, tribal, hill state — a case where
-  executive accountability is institutionally consequential.
+### 4.1 Questions as an information-extraction and oversight instrument
+The theoretical starting point is that questions are how legislatures
+compel information out of executives, and that the answer — not the
+question — carries the oversight content.
 
-### 4.3 Response quality and institutional learning
-- Do executives improve their answers when the same issue
-  recurs? Evidence from legislative studies and public
-  administration.
-- Boilerplate and evasion as forms of non-answer.
+- Maricut-Akbik, A. (2021). *Q&A in legislative oversight: A framework
+  for analysis*. **European Journal of Political Research**. Proposes
+  exactly the design our layer 4 operationalises: analyse question and
+  answer content separately, because oversight quality lives in the
+  answer's text, not in the asking.
+- Proksch, S. O. (2011). *Parliamentary questions and oversight in the
+  European Union*. **European Journal of Political Research**.
+  Comparative variation in question use across question types.
+- Akbik, A. & Migliorati, M. (2024). *Understanding oversight through
+  parliamentary questions: The European Parliament in the Economic
+  and Monetary Union*. **European Union Politics**, 25(4), 675–697.
+  (doi:10.1177/14651165241268274) Variation in oversight quality
+  across holding and policy area — our attention-vs-quality split.
+- Pelizzo, R. & Stapenhurst, R. (2012). *Tools for Parliamentary
+  Oversight: A Comparative Study of 88 National Parliaments*. World
+  Bank. Earlier version: Pelizzo & Stapenhurst (2006), *Parliamentary
+  Oversight for Government Accountability*, SMU Agora. Positions
+  questions as one of several oversight tools — supports treating
+  question-based oversight as a distinct, measurable instrument.
+- World Bank (2011). *Legislatures and Oversight: Ideas for Enhancing
+  the Contribution of Parliament to Good Governance* (doc 33036).
+- Roycroft, P. (2018). *Question Time or Show Time? Analysing the
+  Value of Question Time* (New Zealand). *[journal TBD]* — treats the
+  informational value of question time directly.
+- Melhuish, F. (2024). *Parliamentary questions to the House of
+  Commons Commission*. *[journal TBD]* — evidence-based evaluation of
+  written questions as a scrutiny instrument.
 
-### 4.4 The preparedness concept
-- "Preparedness" in policy discourse (disaster, health,
-  fiscal) vs. our legislative-information operationalisation.
-- Gap: no prior work measures departmental preparedness from
-  question–reply data.
+### 4.2 Subnational legislatures and state assemblies in India
+The subnational level is where Indian oversight actually happens, and
+where the empirical record is thinnest.
+
+- Ojha, S. & Mishra, S. (2010). *An analysis of parliamentary
+  questions raised by opposition in the Uttar Pradesh (India) State
+  Legislative Assembly*. **Australasian Parliamentary Review**; and
+  Ojha, S. (2009), *An analysis of the effectiveness of parliamentary
+  questions in the Uttar Pradesh State Legislative Assembly (India)*,
+  **Proceedings of APSA Comparative Politics**. Closest prior study:
+  analyses thousands of assembly questions and their (in)effectiveness
+  — our opposition-led finding (79.7%) and reply-quality dimensions
+  extend this line to reply text.
+- Singh, R. K. (2005). *Legislative Assemblies in India: A Case Study
+  of Madhya Pradesh Legislative Assembly* (Cambridge, HARDA).
+  Establishes which oversight tools MLAs actually use.
+- Gulzar, S. & Pasquale, B. J. (2017). *Politicians, Bureaucrats, and
+  Development: Evidence from India*. **American Political Science
+  Review**, 111(1), 162–183. Politician–bureaucrat responsiveness in
+  Indian democracy — the accountability logic our reply-side coding
+  tests empirically.
+
+### 4.3 Computational text analysis of parliamentary records
+Our pipeline's method sits in a small but real literature on text
+analysis of legislative records.
+
+- Adhya, S. & Sanyal, D. K. (2022). *What Does the Indian Parliament
+  Discuss? An Exploratory Analysis of the Question Hour in the Lok
+  Sabha*. **Proceedings of the LREC 2022 Workshop on PoliticalNLP**,
+  pp. 72–78. (ACL Anthology 2022.politicalnlp-1.10) — topic modelling
+  of Indian parliamentary questions; the precedent for coding
+  attention at scale in this setting.
+- Kochuvilayil, A., Sankar, H., Joseph, J., Nair, A. B. & Nambiar, D.
+  (2024). *Parliamentarily speaking: A thematic analysis of Kerala
+  Legislative Assembly questions relating to health from 2016 to
+  2021*. **Journal of Family Medicine and Primary Care**. Thematic
+  analysis of a single state assembly's question record — the nearest
+  thematic-comparison study for our Pillar 1 design.
+
+### 4.4 The gap this study fills
+No prior work (a) pairs the question record with the **text of the
+reply** as the primary unit of analysis, (b) reports reply quality as
+separately reported dimensions with per-row evidence rather than a
+composite score, or (c) operationalises a **preparedness gap** from
+question–reply distance at a subnational assembly. Our contribution
+sits exactly in that gap: the NeVA digital library makes full
+question–reply pairs machine-readable, and our six-layer codebook
+converts them into reproducible, dimension-separate evidence. The
+closest neighbours each cover one side of the pair (questions, or
+oversight instruments) but not the reply side.
+
+### 4.5 To verify before submission
+- Final journal and page numbers for the two *[journal TBD]* entries
+  (Roycroft 2018; Melhuish 2024).
+- Page range for Kochuvilayil et al. (2024) if the target journal
+  requires it.
+- Whether the APSA 2009 proceedings paper by Ojha is formally
+  published; otherwise cite the 2010 *Australasian Parliamentary
+  Review* version alone.
 
 ---
 
@@ -209,21 +283,21 @@ all figures computed live in `output/report/index.html`)
 - **Movement.** Steepest rise: Education (+3.0/sitting);
   steepest fall: Chief Minister (−3.2/sitting).
 
-### 6.2 Response quality (Pillar 2; n=2,166 coded replies)
-- **Substance vs specificity.** 40.3% detailed/very detailed;
-  63.3% high specificity — length is not the gap, specifics are
+### 6.2 Response quality (Pillar 2; n=2,168 coded replies)
+- **Substance vs specificity.** 40.4% detailed/very detailed;
+  63.5% high specificity — length is not the gap, specifics are
   thinner than length suggests.
 - **Commitment scarcity.** Timeline 2.0%, responsible party
-  4.8%, budget figure 17.8%; progress evidence 21.8% of the
-  524 replies evidencing a delivery stage.
+  3.4%, budget figure 18.0%; progress evidence 22.4% of the
+  526 replies evidencing a delivery stage.
 - **Discipline signals.** Boilerplate 0.7%, self-contradiction
-  5.7%; assurance weight 3.22 vs evasion 0.23.
+  5.7%; assurance weight 3.28 vs evasion 0.24.
 - **Speed.** 1,409 trustworthy date pairs: median 7 days,
   P75 9 days, 0.1% over 30 days; median departmental notice
   14 days; 3 late replies (0.2%).
-- **Delivery evidence.** 70.0% of replies evidence no delivery
+- **Delivery evidence.** 69.9% of replies evidence no delivery
   stage; most-cited stages are Sanction/Funding (175),
-  Completion (159), Implementation (125).
+  Completion (159), Implementation (126).
 
 ### 6.3 Resolution and learning (Pillar 3)
 - **Trajectories (66 recurring subjects).** Stalled 41,
@@ -236,9 +310,9 @@ all figures computed live in `output/report/index.html`)
 ### 6.4 The preparedness gap (synthesis)
 - Coverage is near-universal (98.6%) so *unanswered demand*
   is thin; the gap lives in *commitments* (2.0% timelines)
-  and *delivery evidence* (70.0% stage-less), not in silence.
+  and *delivery evidence* (69.9% stage-less), not in silence.
 - Vagueness is low on average (0.7% boilerplate) but
-  specificity is uneven (36.7% below high) — departments
+  specificity is uneven (36.5% below high) — departments
   answer at length without always answering concretely.
 - 41 of 66 recurring subjects show no progress language:
   persistence without resolution is the corpus's central
@@ -291,6 +365,8 @@ all figures computed live in `output/report/index.html`)
 
 ---
 
-*Findings (§6) populated from the final full-corpus run
-(2026-10-12): 2,186/2,186 scoped reply texts, 0 failed.
-Literature review (§4) still to draft.*
+*Findings (§6) and literature review (§4) populated from the
+final full-corpus run (2026-10-12): 2,186/2,186 scoped reply texts,
+0 failed; stored reply text refreshed so it reproduces exactly from
+the committed code (128 native-path records recomputed; quarantined
+records untouched).*
