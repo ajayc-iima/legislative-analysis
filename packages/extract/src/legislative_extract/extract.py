@@ -733,10 +733,16 @@ def main(argv=None):
     parser.add_argument("--session", default="", help="only sessions matching this text")
     parser.add_argument("--from-year", type=int, default=0,
                         help="skip rows sitting before this year (0 = all)")
+    parser.add_argument("--csv-out", default="",
+                        help="after the run, write a copy of the questions CSV "
+                             "with extracted date/confidence columns appended")
     args = parser.parse_args(argv)
     key = nvidia.load_key()
     if not key:
         print("No NVIDIA API key (env NVIDIA_API_KEY or legacy config).")
         return 1
-    return run(args.csv, args.pdf_root, args.out, key, limit=args.limit,
-               session=args.session, from_year=args.from_year)
+    status = run(args.csv, args.pdf_root, args.out, key, limit=args.limit,
+                 session=args.session, from_year=args.from_year)
+    if args.csv_out:
+        append_csv(args.csv, args.out, csv_out=args.csv_out)
+    return status
