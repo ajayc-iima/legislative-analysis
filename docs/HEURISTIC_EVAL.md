@@ -11,8 +11,8 @@ applied by inspection on 2026-10-12 to the current build
 | Dimension | Verdict | Evidence / fix |
 |---|---|---|
 | **Message** (one dominant comparison) | ❌→fixed | Chart 02's title asserted "leads N of 11 sessions" with no visual way to verify it → gold rings now mark each session's leading cell. Report cards previously printed the message twice (HTML headline + in-image title) → `_strip_internal_title()` removes the in-SVG `<text>` title; the HTML headline is the single title. |
-| **Mapping** (channel matches variable type) | ❌→fixed | Chart 20 (delivery stage) and chart 12 (trajectory) encoded an **ordered** variable with rainbow hues → ordered single-hue ramps; chart 09 (reply length) red→amber→teal→navy → ordered cool ramp; alarm hues (amber/red) reserved for stalled/regressed. |
-| **Scale** (domain, units, transforms explicit) | ✅ pass | Axis labels carry units (% of coded replies, questions/session, ₹ crore); every share states its denominator; no log or truncated scales. |
+| **Mapping** (channel matches variable type) | ❌→fixed | Chart 20 (delivery stage) and chart 12 (trajectory) encoded an **ordered** variable with rainbow hues → ordered single-hue ramps; chart 09 (reply length) red→amber→teal→navy → ordered cool ramp; alarm hues (amber/red) reserved for stalled/regressed. **Figure 18 was rebuilt entirely**: a budget-versus-questions scatter asked the reader to perform a division across a 45× spread in x, and was replaced by the same comparison stated as a rate — questions per ₹100 crore — as a ranked bar with the median marked, every bar carrying its rate and both inputs. |
+| **Scale** (domain, units, transforms explicit) | ✅ pass | Axis labels carry units (% of coded replies, questions/session, ₹ crore); every share states its denominator; no log or truncated scales. **Figure 16** needed a transform: its theme × department cells run from a median of 1 to a maximum of 213, so a linear colour ramp spent its range on a handful of cells and made the other 140 look empty. Colour now follows a square-root law (stated in the colorbar and the caption) while every cell still prints its exact count. |
 | **Integrity** (visible extent matches values) | ✅ pass | All bars start at zero; heatmaps (02, 16) label every cell and carry a colorbar; diverging chart (08) is symmetric around zero. Label ink is picked by measured WCAG contrast against the real fill (heatmap cell colour sampled from the colormap, segment colour from the palette) instead of a "is this dark?" guess — mid-grey bands get dark ink, not grey. |
 | **Color** (purposeful and accessible) | ❌→fixed | Chart 08 used red/green (CVD-unsafe) → navy/gold from the deck palette; sign is still encoded by position. Chart 11 keeps band colors but now prints the % on every bar and carries a band legend. |
 | **Density** (overlap cannot hide evidence) | ❌→fixed | Charts 09 and 20 drew legends **over** the bars → moved below the plot (outside); chart 20 stacked 9 stages where 4 carry the mass → top-3 stages + "None evidenced" + one honest "Other stages (n)" band, thin members named in the legend. Label collisions were the last form of hidden evidence: scatter labels were placed by a guessed data-space radius and printed on top of each other (figures 8, 10, 18) → `label_points()` measures the rendered text box and keeps a label only when it clears every label already placed. |
@@ -78,9 +78,11 @@ validator):
 - no hardcoded data literals remain in the report generator: every
   number in prose and tables is computed from source data at build time
 - no overlapping labels in any chart (`scripts/dev/audit_labels.py`:
-  21/21 charts pass; rotated labels compared as oriented rectangles)
+  43 figures across the report and the workshop pack pass; rotated labels
+  compared as oriented rectangles)
 - no ambiguous member name in any output (`scripts/dev/audit_names.py`:
-  25 files pass; no shared surname appears without a given name)
+  47 files pass, workshop pack included; no shared surname appears without
+  a given name)
 
 Carried-forward trade-offs: no choropleth (documented); coverage-band
 alarm colors kept with % on every bar plus a band legend; extraction
@@ -159,3 +161,34 @@ is documented in the compendium rather than silently patched: seat lookup
 is not assembly-aware, which can overstate the `constituency_specific`
 scope sub-count by at most 18 of 298 questions, and never a district or
 region figure.
+
+---
+
+## H. The workshop pack (output/workshop/index.html)
+
+A separate, standalone document — deliberately not a section of the
+monograph — built by `scripts/build_workshop.py` from the same pipeline,
+covering the three most-questioned departments. It exists because the
+monograph's argument ("oversight is thin") is not actionable by a
+department, while a dossier of its own record is.
+
+Each chapter carries: a scorecard in which every percentage prints its
+denominator; what is asked (domains, subjects, recurrence, emergence, and
+how much fell outside the department's own portfolio domain); what kind of
+answer is demanded; who is asking, with seat, district, party and bloc;
+what comes back (reply bands, latency against the corpus median, delivery
+stage); three replies quoted verbatim with the coding applied to each; the
+limits of the dossier; and exercises answerable from records the
+department already holds.
+
+It inherits every rule from the main analysis and is held to the same
+audits — no composite score, no readiness index, no ranking, no forecast;
+percentages always with denominators; members named unambiguously; both
+dev audits extended to cover its 22 figures and its text.
+
+One design note worth recording: per-department theme coding is nearly
+degenerate (the codebook assigns each department a default domain, so
+Education is 96% "Education & Schools"). Rather than hide that, the chapter
+reports the complement — the questions that fell *outside* the
+department's own portfolio, which is where members expected the subject to
+be handled elsewhere.

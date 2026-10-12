@@ -154,14 +154,14 @@ def overlaps(a: dict, b: dict) -> bool:
     return True
 
 
-def audit(chart_dir: Path) -> int:
-    svgs = sorted(chart_dir.glob("*.svg"))
+def audit(chart_dirs: list[Path]) -> int:
+    svgs = [svg for d in chart_dirs for svg in sorted(d.glob("*.svg"))]
     if not svgs:
-        print(f"no SVGs in {chart_dir}")
+        print(f"no SVGs in {chart_dirs}")
         return 1
     bad = 0
-    print(f"{'chart':28} {'labels':>7} {'overlapping pairs':>18}")
-    print("-" * 56)
+    print(f"{'chart':40} {'labels':>7} {'overlapping pairs':>18}")
+    print("-" * 68)
     for svg in svgs:
         labels = collect_labels(svg)
         clashes = []
@@ -172,12 +172,12 @@ def audit(chart_dir: Path) -> int:
                 if overlaps(a, b):
                     clashes.append((a["text"], b["text"]))
         status = "ok" if not clashes else f"{len(clashes)}"
-        print(f"{svg.stem:28} {len(labels):>7} {status:>18}")
+        print(f"{svg.stem:40} {len(labels):>7} {status:>18}")
         if clashes:
             bad += 1
             for first, second in clashes[:4]:
                 print(f"    {first!r} over {second!r}")
-    print("-" * 56)
+    print("-" * 68)
     print("PASS: no overlapping labels" if not bad
           else f"FAIL: {bad} chart(s) with overlapping labels")
     return 1 if bad else 0
@@ -185,10 +185,12 @@ def audit(chart_dir: Path) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--charts", default=str(REPO / "output/charts"),
-                    help="directory of built charts")
+    ap.add_argument("--charts", nargs="*",
+                    default=[str(REPO / "output/charts"),
+                             str(REPO / "output/workshop/img")],
+                    help="directories of built charts")
     args = ap.parse_args()
-    return audit(Path(args.charts))
+    return audit([Path(p) for p in args.charts])
 
 
 if __name__ == "__main__":

@@ -102,6 +102,9 @@ def main() -> int:
         REPO / "output/analysis_report.md",
     ]
     paths += sorted((REPO / "output/charts").glob("*.svg"))
+    paths += sorted((REPO / "output/workshop/img").glob("*.svg"))
+    if (REPO / "output/workshop/index.html").exists():
+        paths.append(REPO / "output/workshop/index.html")
     paths += sorted((REPO / "output/anticipation").glob("*.md"))
     paths = [p for p in paths if p.exists()]
     print(f"checking {len(paths)} files; "

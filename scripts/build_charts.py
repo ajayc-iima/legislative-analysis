@@ -85,6 +85,8 @@ EXTREME_LABELS = 5              # per axis, for dense scatters
 LABEL_OFFSETS = ((8, 0, "left"), (-8, 0, "right"), (0, 12, "center"),
                  (0, -13, "center"), (10, -7, "left"))
 MARKER_CLEARANCE_PX = 4        # keep label text off neighbouring marks
+VERIFIABLE_PAIR_MIN = 10       # questions a theme x department cell needs
+                              # before the pairing carries real evidence
 POLICY_ALL = "Every mark is labelled."
 POLICY_EXTREMES = (f"Labelling: the {EXTREME_LABELS} most active members and the "
                     "3 broadest (overlap removed) — too many bubbles to name "
@@ -667,26 +669,57 @@ def main():
     for i, theme in enumerate(top_themes):
         for j, dept in enumerate(top_depts):
             hmat[i][j] = layers["layer1_themes"]["theme_by_department"].get(theme, {}).get(dept, 0)
-    fig, ax = plt.subplots(figsize=(13, 8))
-    im = ax.imshow(hmat, aspect="auto", cmap="Blues", vmin=0)
+
+    # How much of this matrix is actually evidence? The distribution is
+    # long-tailed - median cell 1, largest 213 - so a linear colour scale
+    # spends its whole range on a handful of cells and leaves the rest
+    # looking empty. Colour therefore follows a square-root law (the printed
+    # numbers stay exact counts), and the caption states how many pairings
+    # are verifiable at all.
+    cells = [int(v) for v in hmat.ravel()]
+    non_empty = [v for v in cells if v]
+    verifiable = [v for v in non_empty if v >= VERIFIABLE_PAIR_MIN]
+    total_cells_questions = sum(cells)
+    top10_share = (100 * sum(sorted(non_empty, reverse=True)[:10])
+                   / total_cells_questions) if total_cells_questions else 0
+    median_cell = statistics.median(cells) if cells else 0
+
+    fig, ax = plt.subplots(figsize=(13.5, 8))
+    im = ax.imshow(hmat, aspect="auto", cmap="Blues",
+                   norm=matplotlib.colors.PowerNorm(gamma=0.5, vmin=0,
+                                                    vmax=max(1, max(cells))))
+    col_totals = [int(sum(hmat[:, j])) for j in range(len(top_depts))]
     ax.set_yticks(range(len(top_themes)))
     ax.set_yticklabels([shorten(t, width=30, placeholder="…") for t in top_themes], fontsize=9)
     ax.set_xticks(range(len(top_depts)))
-    ax.set_xticklabels([shorten(d, width=22, placeholder="…") for d in top_depts],
+    # column totals on the axis: the matrix shows *which* pairing, the
+    # margin shows how much, which a colour ramp alone cannot carry
+    ax.set_xticklabels([f"{shorten(d, width=20, placeholder='…')}  ({t:,})"
+                        for d, t in zip(top_depts, col_totals)],
                        rotation=30, ha="right", fontsize=8)
     for i in range(len(top_themes)):
         for j in range(len(top_depts)):
             if hmat[i][j]:
                 ax.text(j, i, hmat[i][j], ha="center", va="center", fontsize=7,
                         color=label_ink(to_hex(im.cmap(im.norm(hmat[i][j])))))
-    fig.colorbar(im, ax=ax, label="Questions")
-    # largest single cell for the message title
+    fig.colorbar(im, ax=ax, label="Questions (square-root colour scale)")
+    # largest single cell, for the caption's method note
     mi, mj = np.unravel_index(int(np.argmax(hmat)), hmat.shape)
-    ax.set_title(f"“{top_themes[mi]}” × {top_depts[mj].replace(' Department', '')} "
-                 f"is the largest single pairing ({int(hmat[mi, mj])} questions)",
+    ax.set_title(f"{len(verifiable)} of {len(cells)} theme × department pairings "
+                 f"carry {VERIFIABLE_PAIR_MIN}+ questions — and they hold "
+                 f"{100 * sum(verifiable) / total_cells_questions:.0f}% of the evidence",
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "16-theme-dept-heatmap", "Theme × department", "Pillar 1",
-         "Which departments face which policy domains. Source: layer1_themes.json.")
+         f"{len(non_empty)} of {len(cells)} cells hold at least one question; "
+         f"{len(verifiable)} hold {VERIFIABLE_PAIR_MIN} or more and carry "
+         f"{100 * sum(verifiable) / total_cells_questions:.0f}% of the "
+         f"{total_cells_questions:,} questions in the matrix; the top 10 "
+         f"pairings alone hold {top10_share:.0f}%. The distribution is "
+         f"long-tailed (median cell {median_cell:g}, largest {max(cells)}), "
+         "so colour uses a square-root scale while every cell prints its exact "
+         f"count. Largest single pairing: {top_themes[mi]} × {top_depts[mj]} "
+         f"({int(hmat[mi, mj])}). Column totals in brackets. "
+         "Source: layer1_themes.json.")
 
     # ── 17. Mentioned geography top 10 (text names, not MLA seats) ──
     mentioned = layers["layer2_geography"]["mentioned"]
@@ -706,41 +739,57 @@ def main():
          "What the text names (gazetteer scan) — complements MLA-seat geography. "
          "Source: layer2_geography.json.")
 
-    # ── 18. Scrutiny vs budget ──
+    # ── 18. Scrutiny relative to size ──
+    # A budget-vs-questions scatter asks the reader to do the division in
+    # their head across a 45x spread in x. The same comparison is stated
+    # directly as a rate - questions per Rs 100 crore - as a ranked bar with
+    # the median marked, so "questioned more/less than its size warrants" is
+    # a length to compare, not a slope to infer.
     from legislative_analysis import reference_data as ref_data
     budgets = ref_data.DEPT_BUDGET
     q_by_dept = Counter(normalize_dept(r.get("Departments")) for r in rows)
-    bx, by, blabels = [], [], []
-    for dept, budget in budgets.items():
-        if dept in q_by_dept and q_by_dept[dept] >= 5:
-            bx.append(budget)
-            by.append(q_by_dept[dept])
-            blabels.append(dept)
-    fig, ax = plt.subplots(figsize=(11, 7))
-    ax.scatter(bx, by, s=110, color=NAVY, alpha=0.7, edgecolors="white", zorder=3)
-    ax.set_xlim(min(bx) - 0.06 * ((max(bx) - min(bx)) or 1),
-                max(bx) + 0.12 * ((max(bx) - min(bx)) or 1))
-    ax.set_ylim(min(by) - 0.09 * ((max(by) - min(by)) or 1),
-                max(by) + 0.09 * ((max(by) - min(by)) or 1))
-    # Largest budgets and the most-questioned departments first; any other
-    # department is named only if its label clears the ones already placed.
-    n_pts = len(bx)
-    prio = (sorted(range(n_pts), key=lambda i: bx[i])[-EXTREME_LABELS:]
-            + sorted(range(n_pts), key=lambda i: by[i])[-3:])
-    n_lab = label_points(ax, bx, by, blabels, priority_idx=prio, width=24)
-    style(ax, xlabel="Budget allocation 2025–26 (₹ crore)", ylabel="Questions (2021–2026)")
-    big_b = blabels[int(np.argmax(bx))]
-    big_b_q = by[int(np.argmax(bx))]
-    rank = sum(1 for y in by if y > big_b_q) + 1
-    ax.set_title(f"Largest budget, {big_b.replace(' Department', '')} "
-                 f"(₹{max(bx):,.0f} crore), ranks #{rank} of {len(by)} in questions asked",
+    # (department, budget crore, questions, questions per Rs 100 crore)
+    rates = [(dept, budget, q_by_dept[dept], q_by_dept[dept] / budget * 100)
+             for dept, budget in budgets.items()
+             if dept in q_by_dept and q_by_dept[dept] >= 5]
+    rates.sort(key=lambda r: -r[3])
+    med_rate = statistics.median(r[3] for r in rates)
+    names = [r[0].replace(" Department", "") for r in rates]
+    values = [r[3] for r in rates]
+    above = [r >= med_rate for r in values]          # position + colour + label
+    fig, ax = plt.subplots(figsize=(11, 7.2))
+    ax.barh(names[::-1], values[::-1],
+            color=[NAVY if a else GOLD for a in above[::-1]], edgecolor="white")
+    ax.axvline(med_rate, color=NAVY, linestyle="--", linewidth=1.5,
+               label=f"median {med_rate:.1f}")
+    # every bar carries its rate and both inputs, so the rate can be checked
+    top_rate = max(values)
+    for i, (dept, budget, n, rate) in enumerate(rates[::-1]):
+        ax.text(rate + top_rate * 0.015, i,
+                f"{rate:.1f}   ({n:,} questions · ₹{budget:,.0f} crore)",
+                va="center", fontsize=8, color=GRAY70, zorder=6,
+                bbox=dict(facecolor="white", alpha=0.9, edgecolor="none", pad=0.8))
+    ax.set_xlim(0, top_rate * 1.45)
+    ax.legend(frameon=False, fontsize=9, loc="lower right")
+    style(ax, xlabel="Questions asked per ₹100 crore of budget allocation "
+                     "(2025–26 allocation)")
+    ax.tick_params(axis="y", labelsize=9)
+    ax.set_ylim(-0.7, len(rates) - 0.3)
+    most, least = rates[0], rates[-1]
+    ax.set_title(f"{most[0].replace(' Department', '')} is asked {most[3] / least[3]:.0f}× "
+                 f"more per rupee than {least[0].replace(' Department', '')} — "
+                 f"which holds the largest budget (₹{least[1]:,.0f} crore) and "
+                 f"{least[2]:,} questions",
                  fontsize=13, color=NAVY, pad=12)
-    save(fig, "18-budget-scatter", "Scrutiny vs resources", "Pillar 1",
-         "Single-year budget vs multi-year questions (limitation noted); "
-         f"per-100-crore table in the dashboard. Labels: budget and "
-         f"questioning leaders first, then every department whose label fits "
-         f"clear of both the other labels and the marks ({n_lab} of {n_pts} "
-         "labelled). Sources: DEPT_BUDGET, CSV.")
+    save(fig, "18-scrutiny-intensity", "Scrutiny vs resources", "Pillar 1",
+         f"Rate = questions (2021–2026) ÷ budget allocation (2025–26), ×100; "
+         f"{len(rates)} departments with at least 5 questions; median "
+         f"{med_rate:.1f} questions per ₹100 crore. Navy = at or above the "
+         "median, gold = below; sign is also carried by bar length and by the "
+         "printed value, never by colour alone. Every bar shows its rate and "
+         "both inputs. Limitation: one budget year against a five-year "
+         "question count, so this compares *levels*, not trends. "
+         "Sources: DEPT_BUDGET, CSV.")
 
     # ── 19. Opposition intensity by session ──
     bbs = layers["layer3_demands"]["bloc_by_session"]

@@ -1316,7 +1316,7 @@ def main():
     add("<h3 class='subsection-heading'>3.6 The Fiscal-Oversight Disconnect</h3>")
     add("<p>An examination of parliamentary scrutiny against budgetary allocations uncovers a profound institutional misallocation (Figure 18). "
         "If legislative questions functioned as financial audits, question volume would scale with public expenditure. In reality, we observe an inverse relationship:</p>")
-    add(figs("18-budget-scatter"))
+    add(figs("18-scrutiny-intensity"))
 
     budget_rows = []
     budgets = ref_data.DEPT_BUDGET
@@ -1721,6 +1721,12 @@ def main():
 
     # --- Footer ---
     add("<footer class='journal-footer'>")
+    add("<p><b>Companion document.</b> The same pipeline, applied to the three "
+        "most-questioned departments and written for workshop use: "
+        "<a href='../workshop/index.html'>Departmental Evidence Dossiers &amp; "
+        "Workshop Pack</a> (<code>output/workshop/index.html</code>). It carries "
+        "the same evidence with per-department denominators, quoted reply "
+        "documents, and exercises a department can answer from its own records.</p>")
     add(f"<p><b>The Preparedness Gap: Executive Accountability, Information Asymmetry, and Subnational Legislative Oversight in India.</b><br>"
         f"Generated: {datetime.now():%d %B %Y at %H:%M} · Source: Meghalaya Legislative Assembly Digital Archives (NeVA, 2021–2026) · "
         f"Comprising {total:,} scoped questions across {n_sessions} sessions, {done_scoped:,} OCR-extracted ministerial replies ({ext_pct}%), "

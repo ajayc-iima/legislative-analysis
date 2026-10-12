@@ -185,7 +185,7 @@ def main():
              "<p>Which departments, policy domains, places and subjects receive the most attention.</p></section>")
     L.append(figures(["01-dept-attention", "02-dept-session-heatmap", "03-themes",
                       "16-theme-dept-heatmap", "04-districts", "17-mentioned-places",
-                      "18-budget-scatter", "05-recurring-dots",
+                      "18-scrutiny-intensity", "05-recurring-dots",
                       "15-mla-bubble"], manifest))
     L.append("<h3>Policy domains</h3>" + table(
         ["Theme", "Questions", "Share"],
