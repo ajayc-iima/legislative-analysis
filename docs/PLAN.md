@@ -1,5 +1,12 @@
 # Final Detailed Plan: Legislative Analysis Compendium & Journal Article
 
+> **Superseded scope note (2026-10-12).** Written for the pre-restriction
+> corpus (2,634 questions, 16 sessions, 2,246 reply PDFs). Delivered
+> scope: sittings from 2021 — **2,217 questions, 11 sessions,
+> 2,186/2,186 scoped reply PDFs** (98.6% question coverage). Corpus
+> figures below are the original plan's; current numbers live in
+> `docs/ARTICLE_SCAFFOLD.md` §6.
+
 ---
 
 ## Overview

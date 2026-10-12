@@ -1,5 +1,13 @@
 # Execution Plan: From OCR Extraction to Journal Article
 
+> **Superseded scope note (2026-10-12).** This plan was written for the
+> pre-restriction corpus (2,634 questions, 16 sessions, 85.3% reply
+> coverage). The delivered corpus is scoped to sittings from 2021:
+> **2,217 questions, 11 sessions, 2,186/2,186 scoped reply PDFs
+> (98.6% question coverage, 18 flagged-empty with recorded reasons)**.
+> Phase/status numbers below describe the original plan; for current
+> figures see `docs/ARTICLE_SCAFFOLD.md` §6 and `output/report/index.html`.
+
 ## Overview
 This plan details the seven-phase execution to transform the validated Legislative Analysis dataset into a three-pillar Compendium and peer-reviewed journal article.
 

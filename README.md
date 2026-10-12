@@ -113,7 +113,7 @@ unvalidated LLM clusters. Those numbers appeared in reports but were never
 back-tested and are not reproducible from the source data. This package
 computes only what the data supports directly, in six auditable layers:
 
-- **Layer 1** — thematic classification: 17 policy domains, keyword rules
+- **Layer 1** — thematic classification: 18 policy domains, keyword rules
   with department-sector tie-break, evidence recorded per row (`codebook.py`)
 - **Layer 2** — geographic tagging: MLA→constituency→district→region plus a
   gazetteer scan, with scope flags (`geography.py`)

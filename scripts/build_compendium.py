@@ -410,7 +410,7 @@ def build():
     add("")
     add("## Classification codebooks")
     add("")
-    add("- **Themes** (Layer 1): 17 policy domains seeded from the legacy "
+    add("- **Themes** (Layer 1): 18 policy domains seeded from the legacy "
         "topic hierarchy; keyword rules with department-sector tie-break; "
         "every row records its evidence (keyword / tie-break / department prior)")
     add("- **Geography** (Layer 2): MLA → constituency → district → region "

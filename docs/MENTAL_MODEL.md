@@ -1,5 +1,11 @@
 # Mental Model: Meghalaya Legislative Analysis → Compendium → Journal Article
 
+> **Scope update (2026-10-12).** Diagrams below show the original
+> pre-restriction corpus (2,634 questions / 16 sessions / 85.3%
+> coverage). Delivered corpus is scoped to sittings from 2021:
+> **2,217 questions, 11 sessions, 2,186 scoped reply PDFs (98.6%
+> question coverage)**. See `docs/ARTICLE_SCAFFOLD.md` §6.
+
 ## 1. What We Have (The Infrastructure)
 
 ```mermaid
