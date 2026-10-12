@@ -246,6 +246,18 @@ def split_reply(words, width, height=0, side="right"):
         and _looks_sentence(" ".join(w[4] for w in flines[0])))
     if n_chars >= 40 and flowing and (len(flines) >= 2 or single_sentence):
         return "\n".join(" ".join(w[4] for w in sorted(line)) for line in flines)
+    # Reply-marker fallback: short replies ("Sir, ...") can sit entirely
+    # left of the split, geometrically identical to an empty reply column
+    # beside a question page. Take them ONLY when most lines carry reply
+    # markers — question text essentially never does — so a bundled
+    # question page is never mislabelled as reply.
+    if flines and n_chars >= 25:
+        sir = sum(1 for line in flines
+                  if re.search(r"\bSir\b", " ".join(w[4] for w in line)))
+        whole = "\n".join(" ".join(w[4] for w in sorted(line)) for line in flines)
+        if (sir / len(flines) >= 0.5
+                and (len(flines) >= 2 or _looks_sentence(whole))):
+            return whole
     return result
 
 

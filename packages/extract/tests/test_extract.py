@@ -294,6 +294,38 @@ def test_looks_gibberish_flags_mojibake_layer():
     assert not looks_gibberish("Memo No. Health.70/2021/43 Dated Shillong, 2021")
 
 
+def test_split_reply_short_sir_reply_kept():
+    # 10_11_S_936 regression: short labeled reply lines sit entirely left
+    # of the split; most lines carry reply markers, so they are taken.
+    words = [(150, 100, 265, 118, "(a) Yes, Sir."),
+             (150, 130, 260, 148, "(b) Sir, 128."),
+             (150, 160, 270, 178, "(c) Sir, does not arise.")]
+    assert split_reply(words, 612, 1000) == (
+        "(a) Yes, Sir.\n(b) Sir, 128.\n(c) Sir, does not arise.")
+
+
+def test_split_reply_single_sir_line_kept():
+    # 10_11_S_907 regression: one short reply line left of the split.
+    words = [(110, 144, 250, 162, "Sir, the matter is being examined.")]
+    assert split_reply(words, 612, 1000) == "Sir, the matter is being examined."
+
+
+def test_split_reply_question_page_stays_empty():
+    # bundled question page: ample left-only text but no reply markers.
+    words = [(60, 100, 200, 118, "(a) whether any"),
+             (60, 130, 220, 148, "(b) the total number"),
+             (60, 160, 210, 178, "(c) the reasons therefor")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_split_reply_sir_minority_stays_empty():
+    # 10_11_US_967 guard: one Sir line among many does not clear the bar.
+    words = [(60, 100 + 20 * i, 200, 118 + 20 * i,
+              "(a) Sir, Narbong" if i == 0 else f"weighbridge item {i}")
+             for i in range(9)]
+    assert split_reply(words, 612, 1000) == ""
+
+
 def test_cut_footer_drops_memo_block():
     text = "Sir, yes.\nDated Shillong, the 26th August, 2026\nMemo No. X\nBy Order"
     assert cut_footer(text) == "Sir, yes."
