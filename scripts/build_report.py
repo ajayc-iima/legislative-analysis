@@ -1069,6 +1069,11 @@ def main():
         n_fam = sem_fam
         n_stalled = sem_stalled
         n_resolved = res_counts.get("resolved", 0)
+    # the exact-match values survive the reassignment above for §5.1's
+    # side-by-side table
+    exact_counts = resolution["resolution_counts"]
+    exact_fam = resolution["n_families"]
+    exact_stalled = exact_counts.get("stalled", 0)
     stalled_pct = pct(n_stalled, sum(res_counts.values()))
     exact_dept_families = Counter(
         (f.get("departments") or ["—"])[0] for f in resolution["families"].values())
@@ -1084,6 +1089,13 @@ def main():
     window = f"{years[0]}–{years[-1]}" if years else "2021–2026"
     t = overall.get("timeliness", {})
     mlas = stats["mlas"]
+
+    # The three departmental deep dives are rendered by the workshop pipeline
+    # and embedded here, so this document is the single shareable report.
+    import build_workshop as dossier_builder
+    dossier_html = dossier_builder.dossier_sections(top=3, badge="Deep Dive")
+    embedding_figure_html = (dossier_builder.wfigure("ws-embedding-audit")
+                             if semantic else "")
 
     L = []
     add = L.append
@@ -1113,6 +1125,7 @@ def main():
     add("<a href='#sec-pillar2'>Pillar II: Oversight Quality</a>")
     add("<a href='#sec-pillar3'>Pillar III: Persistence</a>")
     add("<a href='#sec-briefs'>Ministerial Briefs</a>")
+    add("<a href='#sec-dossiers'>Deep Dives</a>")
     add("<a href='#sec-policy'>Reforms</a>")
     add("<a href='#sec-appendix'>Data Appendix</a>")
     add("</div>")
@@ -1155,8 +1168,9 @@ def main():
         "We uncover three systemic pathologies: (1) <i>Hyper-concentrated scrutiny</i>, where three departments (Education, Health, PWD Roads) absorb 28.2% of questions "
         "and the opposition drives 79.7% of all inquiries, while budget-heavy fiscal ministries operate in near-total obscurity; (2) <i>The Substance-Specificity Paradox</i>, "
         "wherein 40.5% of ministerial replies are detailed in text length, but only 2.0% commit to a binding completion timeline, 3.4% designate an accountable officer, "
-        "and 124 replies (5.7%) exhibit direct internal contradictions within a single paragraph; and (3) <i>The Accountability Trap</i>, wherein 62.1% of recurring subject "
-        "families (41 of 66) remain stalled across multiple sessions without administrative progress language. "
+        "and 124 replies (5.7%) exhibit direct internal contradictions within a single paragraph; and (3) <i>The Accountability Trap</i>, wherein "
+        + f"{pct(n_stalled, sum(res_counts.values()))}% of recurring subject families "
+        f"({n_stalled} of {n_fam}) remain stalled across multiple sessions without administrative progress language. "
         "These findings demonstrate that high formal procedural compliance (rapid 7-day median turnaround) can comfortably coexist with profound substantive information asymmetry. "
         "We conclude with five institutional reforms to transition subnational legislatures from ritualised information extraction to enforceable accountability.</p>")
     add("<div class='keywords-row'><b>Keywords:</b> Legislative Oversight, Question Time, Executive Accountability, Information Asymmetry, Preparedness Gap, Subnational Governance, Indian Federalism, Bureaucratic Evasion.</div>")
@@ -1304,7 +1318,7 @@ def main():
         ["Layer 3: Demands & Blocs", "What do questions demand, and who asks them?", "Structural classification (Information, Action, Explanation, Accountability); member party-to-bloc alignment.", "layer3_demands.json"],
         ["Layer 4: Response Quality Rubric", "What is the substantive quality of replies?", "Multi-vector text coding: length bands, data-point census, evasion/assurance registries, contradiction regex, execution stages.", "stats.json + compute_layer4"],
         ["Layer 5: Longitudinal Recurrence", "Which problems persist over time?", "Default: exact normalised subject matching across ≥2 sessions; 5-point trajectory classification (stalled, resolved, progressing, mixed, regressed). Supplement: dense semantic embeddings with locality, named-scheme and specificity gates plus model verification; both counts published side by side (§5.1).", "layer5_resolution.json + layer5_semantic.json"],
-        ["Layer 6: Trends & Watchlist", "What issues are rising or emerging?", "Ordinary Least Squares (OLS) per-session question slopes; emerging issues watchlist (first seen in last 3 sessions, ≥2 askers).", "layer6_trends.json"]
+        ["Layer 6: Trends & Watchlist", "What issues are rising or emerging?", "Ordinary Least Squares (OLS) per-session question slopes; emerging issues watchlist (first seen in last 3 sessions, ≥2 askers; semantic families when the embedding artefact is present, exact-match baseline otherwise).", "layer6_trends.json + layer5_semantic.json"]
     ]
     add(table(["Layer", "Analytical Purpose", "Algorithmic Methodology", "Primary Output Artifact"], layers_table_rows,
               caption="Table 2.1: The Six-Layer Deterministic Analytical Architecture. Source: REPO documentation."))
@@ -1636,25 +1650,29 @@ def main():
         "<i>'Sanction for the Upgradation of Tura Civil Hospital'</i> in one session becomes <i>'Status of the Civil Hospital Upgradation Project, Tura'</i> "
         "in the next. Exact match treats those as two different subjects, so it understates recurrence. A semantic grouping recovers them, but can also merge "
         "two things that merely read alike. Neither is right on its own, so both are computed, both are published, and the difference is shown.</p>")
+    if embedding_figure_html:
+        add(embedding_figure_html)
     if semantic and comparison:
         rows_cmp = [
-            ["How a question is matched", "String equality after normalisation",
+            ["How a question is matched",
              f"Dense embeddings ({esc(semantic['embed_model'])}, "
-             f"{semantic['embed_dims']} dimensions) plus verification gates"],
-            ["Recurring families found", f"{n_fam}", f"{sem_fam}"],
-            ["Stalled share", f"{pct(n_stalled, sum(res_counts.values()))}% "
-             f"({n_stalled} of {n_fam})",
+             f"{semantic['embed_dims']} dimensions) plus verification gates",
+             "String equality after normalisation"],
+            ["Recurring families found", f"{sem_fam}", f"{exact_fam}"],
+            ["Stalled share",
              f"{pct(sem_stalled, sum(sem_counts.values()))}% "
-             f"({sem_stalled} of {sem_fam})"],
+             f"({sem_stalled} of {sem_fam})",
+             f"{pct(exact_stalled, sum(exact_counts.values()))}% "
+             f"({exact_stalled} of {exact_fam})"],
             ["Families that absorbed a paraphrase",
-             "—", f"{comparison['summary']['families_that_absorbed_paraphrases']}"],
+             f"{comparison['summary']['families_that_absorbed_paraphrases']}", "—"],
             ["Largest set of phrasings in one family",
-             "—", f"{comparison['summary']['max_variants_in_one_family']}"],
-            ["Pairs referred to a human", "—", f"{semantic.get('n_unresolved', 0)}"],
-            ["Needs a network connection to rebuild", "No",
-             f"Yes ({esc(semantic['gate_model'])})"],
+             f"{comparison['summary']['max_variants_in_one_family']}", "—"],
+            ["Pairs referred to a human", f"{semantic.get('n_unresolved', 0)}", "—"],
+            ["Needs a network connection to rebuild",
+             f"Yes ({esc(semantic['gate_model'])})", "No"],
         ]
-        add(table(["", "Exact match (reported throughout)", "Semantic grouping (supplement)"],
+        add(table(["", "Semantic grouping (primary)", "Exact match (audit baseline)"],
                   rows_cmp,
                   caption=f"Table 5.2: The two matching methods on the same corpus. "
                           f"Semantic parameters: candidate at cosine ≥ "
@@ -1673,10 +1691,13 @@ def main():
                   caption="Table 5.3: Where the two methods differ. Exact match returns few families for "
                           "departments whose members rephrase; the semantic pass recovers them. Full per-department "
                           "figures and worked examples: data/review/subject_method_comparison.md."))
-        add(f"<p>The two counts are not ranked against each other. Exact matching is the one used for every other "
-            f"figure in this report, because it needs no model and no network. The semantic pass is offered as a "
-            f"reproducible supplement: its parameters, its provenance and its failure cases are all published, "
-            f"including the pairs it could not decide and referred to a human ({semantic.get('n_unresolved', 0)}).</p>")
+        add(f"<p>The two counts are not ranked against each other. The semantic "
+            f"grouping is the recurrence estimate reported in this monograph's "
+            f"recurrence figures; exact matching remains the reproducible audit "
+            f"baseline, because it needs no model and no network. The semantic "
+            f"pass publishes its parameters, its provenance and its failure cases, "
+            f"including the pairs it could not decide and referred to a human "
+            f"({semantic.get('n_unresolved', 0)}).</p>")
     add("<div class='callout-theory'><b>The gates that decide a merge</b><br>"
         "Five checks run in order, cheapest first, and any of them can stop a merge:<br>"
         "<b>1. Portfolio isolation.</b> Questions are only ever matched inside one department; no merge crosses a department boundary.<br>"
@@ -1735,7 +1756,8 @@ def main():
 
     add("<h3 class='subsection-heading'>5.3 The Emerging Issues Watchlist</h3>")
     add("<p>By analyzing issues appearing for the first time in the three most recent sessions (Eleventh Autumn 2025, Eleventh Budget 2026, Eleventh Autumn 2026) "
-        "with multiple independent askers, Layer 6 isolates the emerging governance challenges that will dominate future legislative sittings:</p>")
+        "with multiple independent askers, the pipeline isolates the emerging governance challenges that will dominate future legislative sittings. "
+        "When the embedding artefact is present these are semantic families; the exact-match watchlist remains available in the layer artefacts:</p>")
 
     emerging_table_rows = [
         [e["subject"], e["first_session"], str(e["occurrences"]), str(len(e["askers"])),
@@ -1743,12 +1765,21 @@ def main():
         for e in emerging
     ]
     add(table(["Emerging Governance Subject", "First Detected", "Sittings", "Members Raising", "Department Responsible", "Strategic Threat"], emerging_table_rows,
-              caption="Table 5.2: Watchlist of Newly Surfacing Legislative Priorities. Source: layer6_trends.json.",
+              caption="Table 5.4: Watchlist of Newly Surfacing Legislative Priorities. Source: "
+                      + ("layer5_semantic.json (embedding families)." if semantic
+                         else "layer6_trends.json."),
               filterable=True, table_id="tbl-emerging-watchlist"))
 
-    add("<p>These six watchlist items—<b>Mission Education</b> (teacher recruitment and syllabus revision), <b>Ration Card Digitization</b> (PDS food grain leaks), "
-        "<b>Replacement of Power Transformers</b> (chronic rural blackouts), <b>RDSS Implementation</b> (smart metering protests), <b>Tourism Infrastructure Projects</b> "
-        "(unutilized funds), and <b>Villages without Electricity</b>—signal the next wave of executive vulnerability that line ministries must proactively address.</p>")
+    if emerging:
+        top_watch = sorted(emerging, key=lambda e: -e["occurrences"])[:6]
+        add("<p>These %d watchlist items — %s — signal the next wave of executive "
+            "vulnerability that line ministries must proactively address.</p>"
+            % (len(emerging),
+               " · ".join(f"<b>{esc(e['subject'])}</b>" for e in top_watch)))
+    else:
+        add("<p>No issue in the current corpus meets the emerging-issue threshold "
+            "(first seen in the most recent three sittings, asked at least twice by "
+            "at least two members).</p>")
 
     # --- Section 6: Ministerial Briefs ---
     add("<div class='section-arc'>Actionable Intelligence · Ministerial Briefs</div>")
@@ -1790,20 +1821,37 @@ def main():
 
             add("</div></div>")
 
-    # --- Section 7: Discussion & Policy ---
+    # --- Section 7: Departmental Deep Dives ---
+    add("<div class='section-arc'>Departmental Evidence · Deep Dives</div>")
+    add("<h2 class='section-heading' id='sec-dossiers'>7. Departmental Deep Dives: The Three Most-Questioned Departments</h2>")
+    add(f"<p>The three departments that absorb most floor attention — "
+        f"{esc(top_depts[0]['department'])} ({top_depts[0]['questions']} questions), "
+        f"{esc(top_depts[1]['department'])} ({top_depts[1]['questions']}), and "
+        f"{esc(top_depts[2]['department'])} ({top_depts[2]['questions']}) — together draw "
+        f"{top3_share}% of the corpus. The dossiers below repeat every measure with the "
+        f"department's own denominator: what was asked, what came back, how much of it "
+        f"was actionable, which subjects recur (embedding families with the exact-match "
+        f"audit baseline beside them), which are emerging, and which replies remain "
+        f"unreadable. Each dossier closes with exercises the department can answer from "
+        f"its own records.</p>")
+    add(dossier_html)
+
+    # --- Section 8: Discussion & Policy ---
     add("<div class='section-arc'>Policy Synthesis · Institutional Reform</div>")
-    add("<h2 class='section-heading' id='sec-policy'>7. Discussion and Institutional Recommendations: Dismantling the Paper Leviathan</h2>")
+    add("<h2 class='section-heading' id='sec-policy'>8. Discussion and Institutional Recommendations: Dismantling the Paper Leviathan</h2>")
     add("<p>The empirical findings of this monograph illuminate what we define as the <b>'Paper Leviathan' Paradox</b> in Indian subnational governance. "
         "The state bureaucracy demonstrates exquisite formal compliance: question files are logged, answers are routed through ministerial secretariats, "
         "and signed PDFs are uploaded to the NeVA portal within an impressive 7-day median window (98.6% compliance). "
         "Yet behind this facade of digital efficiency lies profound substantive immunity: 98.0% of replies avoid binding completion dates, "
-        "69.9% evidence zero delivery stages, and 62.1% of recurring governance failures remain permanently unresolved.</p>")
+        "69.9% evidence zero delivery stages, and "
+        + f"{pct(n_stalled, sum(res_counts.values()))}% of recurring governance failures "
+        f"({n_stalled} of {n_fam}, embedding families) remain permanently unresolved.</p>")
 
     add("<div class='callout-theory'><b>The Institutional Mechanism:</b> Subnational Question Hour functions as a pressure-release valve. "
         "Because parliamentary rules lack binding mechanisms to verify whether written ministerial assurances are ever executed, "
         "departments treat Question Hour as a communication hurdle to be cleared with vague rhetoric, rather than a managerial driver of delivery.</div>")
 
-    add("<h3 class='subsection-heading'>7.1 Five Actionable Reforms for State Legislative Assemblies</h3>")
+    add("<h3 class='subsection-heading'>8.1 Five Actionable Reforms for State Legislative Assemblies</h3>")
     add("<p>To bridge the Preparedness Gap and restore parliamentary oversight as an engine of real-world accountability, we propose five structural reforms:</p>"
         "<ol>"
         "<li><b>Statutory Codification of Legislative Assurances:</b> Transform the Committee on Government Assurances into an automated, digital tracking organ. Any reply containing assurance signals or promising action 'in due course' must be automatically tagged with a statutory 90-day clock, requiring the department to table an Action-Taken Report (ATR) in the subsequent session.</li>"
@@ -1813,9 +1861,9 @@ def main():
         "<li><b>Strengthening Floor Follow-Up on Unstarred Questions:</b> Expand floor rights for Unstarred (written) questions. When written replies fail to meet minimum evidentiary specificity or contradict prior submissions, the Speaker should permit a dedicated 30-minute 'Accountability Call' allowing members to challenge defective answers before the House.</li>"
         "</ol>")
 
-    # --- Section 8: Appendix ---
+    # --- Section 9: Appendix ---
     add("<div class='section-arc'>Verification · Empirical Appendix</div>")
-    add("<h2 class='section-heading' id='sec-appendix'>8. Comprehensive Data Appendix & Verification Registers</h2>")
+    add("<h2 class='section-heading' id='sec-appendix'>9. Comprehensive Data Appendix & Verification Registers</h2>")
     add("<p>To guarantee complete scientific reproducibility, all underlying data tables, departmental directories, member activity registers, "
         "and recurring subject genealogies are provided below:</p>")
 
@@ -1854,7 +1902,7 @@ def main():
                       all_mla_rows, filterable=True, table_id="tbl-all-mlas-appendix",
                       caption="Appendix Table A.3: Activity Record of All 57 Legislators in the 10th and 11th Assemblies. Source: stats.json.")))
 
-    # All 66 Recurring Subjects
+    # Every recurring subject family (embedding families when available)
     all_fam_rows = [
         [f["subject"], str(f["occurrences"]), str(len(f["sessions"])), ", ".join(f["departments"][:2]), f["trajectory"].replace("_", " ").title()]
         for f in fam_top
@@ -1862,10 +1910,13 @@ def main():
     add(details(f"Complete Roster of All {n_fam} Recurring Subject Families",
                 table(["Subject Title", "Sitting Occurrences", "Sessions Spanned", "Responsible Departments", "Observed Trajectory"],
                       all_fam_rows, filterable=True, table_id="tbl-all-families-appendix",
-                      caption=f"Appendix Table A.4: Complete Directory of All {n_fam} Recurring Legislative Subjects. Source: layer5_resolution.json.")))
+                      caption=f"Appendix Table A.4: Complete Directory of All {n_fam} Recurring "
+                              f"Legislative Subjects. Source: "
+                              + ("layer5_semantic.json (embedding families)." if semantic
+                                 else "layer5_resolution.json."))))
 
     # Methodology & Codebook
-    add("<h3 class='subsection-heading'>8.1 Reproducibility Pipeline</h3>")
+    add("<h3 class='subsection-heading'>9.1 Reproducibility Pipeline</h3>")
     add("<p>Every figure, table, and empirical metric in this monograph is completely deterministic and reproducible. "
         "The complete analysis chain can be regenerated using the committed repository scripts:</p>")
     add("<pre style='background:#1E293B; color:#F8FAFC; padding:1.2rem; border-radius:6px; font-family:var(--mono); font-size:0.82rem; overflow-x:auto;'>"
@@ -1877,18 +1928,22 @@ def main():
         "python scripts/build_compendium.py\n\n"
         "# Step 4: Render all 21 publication figures (SVG & PNG)\n"
         "python scripts/build_charts.py\n\n"
-        "# Step 5: Generate this publication-grade research monograph\n"
-        "python scripts/build_report.py\n"
+        "# Step 5: Generate this publication-grade research monograph (deep dives included)\n"
+        "python scripts/build_report.py\n\n"
+        "# Optional: regenerate the standalone workshop pack of the same dossiers\n"
+        "python scripts/build_workshop.py\n"
         "</pre>")
 
     # --- Footer ---
     add("<footer class='journal-footer'>")
-    add("<p><b>Companion document.</b> The same pipeline, applied to the three "
-        "most-questioned departments and written for workshop use: "
+    add("<p><b>Departmental deep dives.</b> Section 7 applies the same pipeline to "
+        "the three most-questioned departments — "
+        + f"{esc(top_depts[0]['department'])}, {esc(top_depts[1]['department'])} and "
+        f"{esc(top_depts[2]['department'])} — with per-department denominators, quoted "
+        "reply documents and exercises a department can answer from its own records. "
+        "The same chapters are also published as a standalone pack: "
         "<a href='../workshop/index.html'>Departmental Evidence Dossiers &amp; "
-        "Workshop Pack</a> (<code>output/workshop/index.html</code>). It carries "
-        "the same evidence with per-department denominators, quoted reply "
-        "documents, and exercises a department can answer from its own records.</p>")
+        "Workshop Pack</a> (<code>output/workshop/index.html</code>).</p>")
     add(f"<p><b>The Preparedness Gap: Executive Accountability, Information Asymmetry, and Subnational Legislative Oversight in India.</b><br>"
         f"Generated: {datetime.now():%d %B %Y at %H:%M} · Source: Meghalaya Legislative Assembly Digital Archives (NeVA, 2021–2026) · "
         f"Comprising {total:,} scoped questions across {n_sessions} sessions, {done_scoped:,} OCR-extracted ministerial replies ({ext_pct}%), "
@@ -1923,7 +1978,7 @@ def main():
     dest.write_text("\n".join(L), encoding="utf-8")
     kb = dest.stat().st_size // 1024
     n_tables = "\n".join(L).count("<table")
-    print(f"Publication Monograph -> {dest} ({kb} KB, {len(FIG)} figures, {n_tables} tables, self-contained)")
+    print(f"Publication Monograph + 3 departmental deep dives -> {dest} ({kb} KB, {len(FIG)} figures, {n_tables} tables, self-contained)")
 
 
 if __name__ == "__main__":

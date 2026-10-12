@@ -594,6 +594,7 @@ def main():
         ax.set_xticks(range(len(order)))
         ax.set_xticklabels(slabels, rotation=45, ha="right", fontsize=8)
         ax.set_xlim(-0.5, len(order) - 0.5)
+        ax.set_ylim(-0.6, len(emerging) + 0.6)
         watch_start = max(0, len(order) - 3) - 0.5
         ax.axvspan(-0.5, watch_start, color=GRAY15, alpha=0.35, zorder=0)
         ax.text((watch_start - 0.5) / 2, 0.5,
@@ -601,9 +602,10 @@ def main():
                 transform=ax.get_xaxis_transform(), ha="center", va="center",
                 fontsize=8, color=GRAY70,
                 bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"})
-        ax.text(watch_start + 0.15, 1.02, "Watchlist window",
-                transform=ax.get_xaxis_transform(), ha="left", va="bottom",
-                fontsize=8, color=TEAL, fontweight="bold")
+        # keep the window label inside the axes so it cannot collide with the
+        # title (the label audit checks every text pair)
+        ax.text(watch_start + 0.15, len(emerging) + 0.25, "Watchlist window",
+                ha="left", va="center", fontsize=8, color=TEAL, fontweight="bold")
     style(ax, xlabel="First-appearance session")
     n_em = len(emerging)
     firsts = {e["first_session"] for e in emerging}

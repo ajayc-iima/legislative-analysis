@@ -787,7 +787,7 @@ def pick_exhibits(d: dict) -> list[dict]:
         None,
     )
     if target and not any(x["pdf"] == target["pdf"] for x in picks):
-        picks.append({**target, "why": "target extraction audit"})
+        picks.append({**target, "why": "extraction audit"})
     return picks
 
 
@@ -814,10 +814,17 @@ def exhibits_html(d: dict) -> str:
         reply = api_reply or x["reply"] or ""
         source = ("NVIDIA vision re-extraction" if api_reply
                   else "corpus OCR fallback — NVIDIA cache missing")
-        note = (f"Rubric reading: {band} reply; highest stage evidenced: {stage}; "
-                f"{', '.join(flags) if flags else 'no actionable element detected'}. "
-                f"Selected as the department's {x['why']} among {d['n_coded']:,} "
-                f"coded replies.")
+        if x["why"] == "extraction audit":
+            note = (f"Rubric reading: {band} reply; highest stage evidenced: {stage}; "
+                    f"{', '.join(flags) if flags else 'no actionable element detected'}. "
+                    f"Selected as the extraction-audit case among {d['n_coded']:,} coded "
+                    f"replies; the reply text is checked against the signed PDF for "
+                    f"completeness.")
+        else:
+            note = (f"Rubric reading: {band} reply; highest stage evidenced: {stage}; "
+                    f"{', '.join(flags) if flags else 'no actionable element detected'}. "
+                    f"Selected as the department's {x['why']} among {d['n_coded']:,} "
+                    f"coded replies.")
         out.append(exhibit_card(
             qno=re.sub(r"^\s*Q\.?\s*No\.?\s*", "", str(row.get("Question_Number") or ""),
                        flags=re.I).strip() or "—",
@@ -1145,7 +1152,8 @@ def prepare(top: int = 3) -> dict:
         "Median reply latency (days)": statistics.median(rest_lat) if rest_lat else 0,
     }
     return {"profiles": profiles, "corpus": corpus, "corpus_median": corpus_median,
-            "sess_labels": sess_labels, "sem": sem, "overall": overall}
+            "sess_labels": sess_labels, "sem": sem, "overall": overall,
+            "totals": totals, "top_depts": top_depts}
 
 
 def render_department_figures(prep: dict) -> None:
@@ -1186,6 +1194,8 @@ def main(argv=None) -> int:
     prep = prepare(args.top)
     profiles = prep["profiles"]
     corpus, corpus_median, sem = prep["corpus"], prep["corpus_median"], prep["sem"]
+    totals = prep["totals"]
+    top_depts = prep["top_depts"]
 
     render_department_figures(prep)
     fig_compare(profiles, prep["overall"], corpus_median)
