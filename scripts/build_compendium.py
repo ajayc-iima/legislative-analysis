@@ -161,6 +161,9 @@ def build():
     overall, dept_summary, _records = compute_layer4(rows, extracted)
 
     total = len(rows)
+    n_scoped_pdfs = len({str(r.get("Document_Link") or "").rsplit("/", 1)[-1]
+                         for r in rows if (r.get("Document_Link") or "").strip()})
+    extraction_complete = len(extracted) >= n_scoped_pdfs
     stats = json.loads((REPO / "output/stats.json").read_text(encoding="utf-8"))
     n_depts = stats["overview"]["departments"]
     n_replies = stats["overview"]["with_reply"]
@@ -188,9 +191,10 @@ def build():
     add(f"- **Corpus**: {total:,} questions to {n_depts} departments by "
         f"{stats['overview']['mlas']} MLAs; signed replies for "
         f"{n_replies:,} ({stats['overview']['reply_coverage']}%)")
-    add(f"- **Replies OCR-extracted so far**: {len(extracted):,} "
-        f"(Layer 4 coverage {pct(len(extracted), 2246)}% of the 2,246 PDFs — "
-        f"the extraction run is in progress; this document regenerates)")
+    add(f"- **Replies OCR-extracted**: {len(extracted):,} of {n_scoped_pdfs:,} "
+        f"scoped PDFs ({pct(len(extracted), n_scoped_pdfs)}%)"
+        + ("" if extraction_complete else
+           " — extraction run in progress; this document regenerates"))
     add(f"- **Attention leader**: {themes['theme_counts'] and max(themes['theme_counts'], key=themes['theme_counts'].get)} "
         f"is the most-asked policy domain")
     add(f"- **Demand mix**: {demands['demand_counts'] and ', '.join(f'{k} {v}' for k, v in sorted(demands['demand_counts'].items(), key=lambda kv: -kv[1]))}")
@@ -290,7 +294,8 @@ def build():
     add("## Chapter 7. Response quality")
     add("")
     add(f"Replies coded: **{overall['n_coded']:,}** "
-        f"({pct(overall['n_coded'], 2246)}% of the 2,246 reply PDFs).")
+        f"({pct(overall['n_coded'], n_scoped_pdfs)}% of the {n_scoped_pdfs:,} "
+        "scoped reply PDFs).")
     add("")
     add("| Dimension | Distribution |")
     add("|---|---|")
@@ -396,7 +401,8 @@ def build():
     add("- Questions: NeVA Digital Library portal, scraped to "
         "`data/dl_questions_raw.csv`; analysis scope is sittings from 2021 "
         "onwards (pre-2021 reply coverage 0–16%)")
-    add("- Reply PDFs: 2,246 signed scans under `data/pdfs/` (85.3% of questions)")
+    add(f"- Reply PDFs: {n_scoped_pdfs:,} signed scans in scope under "
+        f"`data/pdfs/` ({stats['overview']['reply_coverage']}% of questions)")
     add("- Reply text/dates: NVIDIA OCR (nemotron-ocr-v1) with a three-reader "
         "consensus (ocr-v1 + parse + vision-11b) and a reasoning supervisor "
         "for unresolved dates; mechanical gates (parseable, ordered, "
@@ -441,8 +447,8 @@ def build():
     report = "\n".join(L)
     (OUT_DIR / "COMPENDIUM.md").write_text(report, encoding="utf-8")
     print(f"Compendium: {len(report.splitlines())} lines -> {OUT_DIR / 'COMPENDIUM.md'}")
-    print(f"  Layer 4 coverage: {len(extracted)}/2246 replies "
-          f"({pct(len(extracted), 2246)}%)")
+    print(f"  Layer 4 coverage: {len(extracted)}/{n_scoped_pdfs} replies "
+          f"({pct(len(extracted), n_scoped_pdfs)}%)")
 
 
 if __name__ == "__main__":

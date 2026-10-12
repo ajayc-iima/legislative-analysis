@@ -135,6 +135,8 @@ def main():
     total = ov["questions"]
     rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     extracted = load_extracted()
+    n_scoped_pdfs = len({str(r.get("Document_Link") or "").rsplit("/", 1)[-1]
+                         for r in rows if (r.get("Document_Link") or "").strip()})
     overall, dept_summary, _records = compute_layer4(rows, extracted)
     try:
         briefs = json.loads((REPO / "output/anticipation/dept_briefs.json").read_text(encoding="utf-8"))
@@ -160,7 +162,7 @@ def main():
              f"<p>Generated {datetime.now():%Y-%m-%d %H:%M} · "
              f"{total:,} questions in scope · {len(stats['sessions'])} sessions (2021–2026) · "
              f"{ov['departments']} departments · {ov['mlas']} MLAs · "
-             f"replies OCR-extracted: {len(extracted):,}/2,246</p></header>")
+             f"replies OCR-extracted: {len(extracted):,}/{n_scoped_pdfs:,}</p></header>")
     L.append("<nav class='toc'><a href='#p1'>Attention</a><a href='#p2'>Oversight quality</a>"
              "<a href='#p3'>Persistent challenges</a><a href='#anticipate'>Anticipate &amp; prepare</a>"
              "<a href='#gaps'>Preparedness gaps</a><a href='#methods'>Methods</a></nav>")

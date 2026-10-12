@@ -63,8 +63,8 @@ data/pdfs/assembly-11/autumn-session-2026/11_9_S_4037_V1_signed.pdf
 
 Filenames are the portal's own (they already carry assembly/session/
 question/version codes). The layout is a presentation choice — filenames
-alone are unique across the corpus (verified: 0 collisions in 2,246
-rows).
+alone are unique across the corpus (verified: 0 collisions across
+all 2,186 scoped rows, one record per filename).
 
 ```bash
 # download everything missing (resume-friendly: existing files skipped)
