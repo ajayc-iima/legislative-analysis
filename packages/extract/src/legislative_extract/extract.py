@@ -170,12 +170,16 @@ FOOTER_MARK = re.compile(
     r"(joint|deputy|under) secretary)", re.I)
 # Bulletin/question formulae: never reply content. Unanchored on purpose:
 # header boxes often share a line with other words ("Question? STARRED
-# QUESTIONS ..."). The plural "questions" plus "pleased to state" keeps
-# replies that cite a singular "Starred Question No. N" safe. The
-# answering-minister assignment ("... to reply:-") and bare column headers
-# ("Question" / "Replies") are endemic benign metadata and are NOT matched
-# here — only patterns that prove bulletin/question material shares the page.
-QUESTION_HEAD = re.compile(r"\bstarred questions\b|pleased to state", re.I)
+# QUESTIONS ..."), and OCR glues prefixes ("UNSTARRED"). The plural
+# "questions" plus the asker formula keeps replies that cite a singular
+# "Starred Question No. N" safe — locked by
+# test_split_reply_keeps_singular_citation. The answering-minister
+# assignment ("... to reply:-") and bare column headers ("Question" /
+# "Replies") are endemic benign metadata and are NOT matched here — only
+# patterns that prove bulletin/question material shares the page.
+QUESTION_HEAD = re.compile(
+    r"(?:UN)?STARRED QUESTIONS\b|\bQUESTIONS? TO BE ASKED BY\b|pleased to state",
+    re.I)
 
 
 def split_reply(words, width, height=0, side="right"):

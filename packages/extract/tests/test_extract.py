@@ -349,6 +349,31 @@ def test_split_reply_pleased_to_state_refused():
     assert split_reply(words, 612, 1000) == ""
 
 
+def test_split_reply_skips_unstarred_header_line():
+    # bulletin header in the right column is dropped, reply kept.
+    words = [(10, 10, 40, 20, "Question?"),
+             (60, 10, 100, 20, "UNSTARRED QUESTIONS TO BE ASKED"),
+             (65, 40, 95, 60, "Sir, yes.")]
+    assert split_reply(words, 110, 100) == "Sir, yes."
+
+
+def test_split_reply_asker_formula_refused():
+    # 11_9_S_4075 pattern: asker-bulletin line without STARRED still
+    # proves a mixed page -> whole fallback refused.
+    words = [(200, 100, 340, 118, "QUESTIONS TO BE ASKED BY SHRI. X, MLA"),
+             (200, 130, 340, 148, "Sir, the reply text is here for you all")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_split_reply_keeps_singular_citation():
+    # 11_5_S_3130 guard: a reply citing "Starred Question 9" is genuine
+    # content, not a bulletin header — must survive.
+    words = [(200, 100, 340, 118,
+              "The replies to Starred Question 9 are placed on the Table.")]
+    assert split_reply(words, 612, 1000) == (
+        "The replies to Starred Question 9 are placed on the Table.")
+
+
 def test_cut_footer_drops_memo_block():
     text = "Sir, yes.\nDated Shillong, the 26th August, 2026\nMemo No. X\nBy Order"
     assert cut_footer(text) == "Sir, yes."
