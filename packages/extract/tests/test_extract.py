@@ -326,6 +326,29 @@ def test_split_reply_sir_minority_stays_empty():
     assert split_reply(words, 612, 1000) == ""
 
 
+def test_split_reply_skips_starred_header_line():
+    # question-bulletin header in the right column is dropped, reply kept.
+    words = [(10, 10, 40, 20, "Question?"),
+             (60, 10, 100, 20, "STARRED QUESTIONS TO BE ASKED"),
+             (65, 40, 95, 60, "Sir, yes.")]
+    assert split_reply(words, 110, 100) == "Sir, yes."
+
+
+def test_split_reply_mixed_qa_page_refused():
+    # 10_14_S_1967 regression: straddling bulletin line + reply lines on a
+    # single-column page -> whole fallback refused, not half-stored.
+    words = [(200, 100, 340, 118, "STARRED QUESTIONS TO BE ASKED BY X"),
+             (200, 130, 340, 148, "Sir, some minor cracks developed here"),
+             (200, 160, 340, 178, "Sir, the report has been submitted today")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_split_reply_pleased_to_state_refused():
+    words = [(200, 100, 340, 118, "Will the Minister be pleased to state"),
+             (200, 130, 340, 148, "Sir, the reply text is here for you all")]
+    assert split_reply(words, 612, 1000) == ""
+
+
 def test_cut_footer_drops_memo_block():
     text = "Sir, yes.\nDated Shillong, the 26th August, 2026\nMemo No. X\nBy Order"
     assert cut_footer(text) == "Sir, yes."

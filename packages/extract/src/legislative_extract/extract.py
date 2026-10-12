@@ -168,6 +168,14 @@ SPLIT_FRACTION = 0.45
 FOOTER_MARK = re.compile(
     r"^\s*(memo|dated|date of reply|copy to|by orders?|yours faithfully|"
     r"(joint|deputy|under) secretary)", re.I)
+# Bulletin/question formulae: never reply content. Unanchored on purpose:
+# header boxes often share a line with other words ("Question? STARRED
+# QUESTIONS ..."). The plural "questions" plus "pleased to state" keeps
+# replies that cite a singular "Starred Question No. N" safe. The
+# answering-minister assignment ("... to reply:-") and bare column headers
+# ("Question" / "Replies") are endemic benign metadata and are NOT matched
+# here — only patterns that prove bulletin/question material shares the page.
+QUESTION_HEAD = re.compile(r"\bstarred questions\b|pleased to state", re.I)
 
 
 def split_reply(words, width, height=0, side="right"):
@@ -185,10 +193,13 @@ def split_reply(words, width, height=0, side="right"):
     line that reads as a sentence (lowercase letters, terminal punctuation),
     which titles and banners never are. A left-column-only page (question
     asked, no reply given) has no straddling lines and still returns "", so
-    question text is never mislabelled as reply. Residual risk (documented):
-    a page holding nothing but two long full-width title lines would be
-    taken as reply text; such pages are pathological in reply PDFs and still
-    carry their REVIEW flags for dates.
+    question text is never mislabelled as reply. Bulletin/question formulae
+    (STARRED-questions headers, "pleased to state") are skipped in both
+    passes; if the fallback drops any such line the page mixes bulletin
+    material with answers and the whole fallback is refused. Residual risk
+    (documented): a page holding nothing but two long full-width title
+    lines would be taken as reply text; such pages are pathological
+    in reply PDFs and still carry their REVIEW flags for dates.
     """
     if not words:
         return ""
@@ -214,6 +225,8 @@ def split_reply(words, width, height=0, side="right"):
         text = " ".join(w[4] for w in line)
         if FOOTER_MARK.match(text):
             continue
+        if QUESTION_HEAD.search(text):
+            continue
         if side == "right":
             kept = [w[4] for w in line if (w[0] + w[2]) / 2 >= split
                     and (w[1] + w[3]) / 2 < cutoff]
@@ -233,10 +246,21 @@ def split_reply(words, width, height=0, side="right"):
         if (w[1] + w[3]) / 2 < cutoff:
             body[round((w[1] + w[3]) / 2)] += [w]
     flines = []
+    qdropped = 0
     for _, line in sorted(body.items()):
         text = " ".join(w[4] for w in sorted(line))
-        if text.strip() and not FOOTER_MARK.match(text):
-            flines.append(line)
+        if not text.strip() or FOOTER_MARK.match(text):
+            continue
+        if QUESTION_HEAD.search(text):
+            # Bulletin/question material shares the page: line rules cannot
+            # separate interleaved sub-questions from answers. Refuse the
+            # whole fallback rather than store question text as reply; the
+            # record stays flagged for human review.
+            qdropped += 1
+            continue
+        flines.append(line)
+    if qdropped:
+        return ""
     n_chars = sum(len(w[4]) for line in flines for w in line)
     straddling = sum(1 for line in flines
                      if any(w[0] < split < w[2] for w in line))
@@ -392,7 +416,10 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
             reply_raw = reply_raw or found_reply
             submission_raw = submission_raw or found_sub
         time.sleep(PAUSE_SECONDS if ocr_used else 0)
-        if reply_raw and submission_raw and page >= 1:
+        # Dates found AND some reply text in hand (and past page 0): stop.
+        # Requiring reply text too keeps reading while the reply pages are
+        # still ahead (e.g. dates on page 0, reply from page 2 on).
+        if reply_raw and submission_raw and replies and page >= 1:
             break
     reply_date, submission_date = parse_date(reply_raw), parse_date(submission_raw)
     needs_review = list(errors)
