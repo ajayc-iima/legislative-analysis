@@ -25,6 +25,11 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+# Real <text> in SVG output (not outlined paths): smaller files, selectable
+# and screen-reader-readable text. The report strips the in-figure title when
+# it renders its own HTML headline for the same message (no double title);
+# standalone PNG/SVG keep it for sharing.
+matplotlib.rcParams["svg.fonttype"] = "none"
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Patch
@@ -45,10 +50,15 @@ GRAY70, GRAY40, GRAY15 = "#4A4A4A", "#9E9E9E", "#E0E0E0"
 GREEN, AMBER, RED = "#27AE60", "#E67E22", "#C0392B"
 DEMAND_COLORS = {"Information": NAVY, "Action": TEAL, "Explanation": GOLD,
                  "Accountability": RED}
-SUBST_COLORS = {"brief": RED, "standard": AMBER, "detailed": TEAL,
-                "very_detailed": NAVY}
-TRAJ_COLORS = {"resolved": GREEN, "progressing": TEAL, "stalled": AMBER,
-               "regressed": RED, "mixed": GRAY40, "awaiting_replies": GRAY15,
+SUBST_COLORS = {"brief": "#B4C7DC", "standard": "#8AA8C8",
+                "detailed": "#4E77A8", "very_detailed": NAVY}
+# Trajectory is an ORDERED progression (regressed -> stalled -> mixed ->
+# progressing -> resolved): an ordered cool ramp carries the progression,
+# while the two alarm states (regressed, stalled) wear warm highlight
+# colors. The previous green/teal/amber/red set read as a rainbow with no
+# order (deck: Mapping + Color).
+TRAJ_COLORS = {"resolved": NAVY, "progressing": "#4A75A5", "mixed": GRAY40,
+               "stalled": AMBER, "regressed": RED, "awaiting_replies": GRAY15,
                "unknown": GRAY40}
 
 OUT = REPO / "output/charts"
@@ -159,6 +169,13 @@ def main():
         if mat[best][j]:
             leaders[top15[best]] += 1
     lead_name, lead_n = leaders.most_common(1)[0] if leaders else ("—", 0)
+    # Make the claimed leader visible: ring each session-maximum cell so the
+    # "leads N of M sessions" title can be verified by eye, not trusted.
+    for j in range(len(order)):
+        best = max(range(len(top15)), key=lambda i: mat[i][j])
+        if mat[best][j]:
+            ax.add_patch(plt.Rectangle((j - 0.48, best - 0.48), 0.96, 0.96,
+                                       fill=False, edgecolor=GOLD, linewidth=1.8, zorder=5))
     ax.set_title(f"{lead_name.replace(' Department', '')} leads {lead_n} of "
                  f"{len(order)} sessions", fontsize=13, color=NAVY, pad=12)
     save(fig, "02-dept-session-heatmap", "Attention matrix", "Pillars 1–2",
@@ -169,7 +186,10 @@ def main():
     items = sorted(themes.items(), key=lambda kv: -kv[1])
     fig, ax = plt.subplots(figsize=(10, 7.5))
     ax.barh([t for t, _ in items][::-1], [n for _, n in items][::-1], color=TEAL, edgecolor="white")
-    style(ax, xlabel="Questions")
+    for i, (t, n) in enumerate(reversed(items)):
+        ax.text(n + 4, i, f"{n} ({100 * n / total:.1f}%)", va="center", fontsize=9, color=GRAY70)
+    ax.set_xlim(0, max(n for _, n in items) * 1.22)
+    style(ax, xlabel=f"Questions (share of {total:,})")
     top2 = items[:2]
     top2_share = round(100 * sum(n for _, n in top2) / total, 1)
     ax.set_title(f"{top2[0][0]} and {top2[1][0]} take {top2_share}% of all questions",
@@ -259,9 +279,18 @@ def main():
                 [(d["department"], d["mean_delta"]) for d in trends["declining_departments"][:8]])
     combined.sort(key=lambda kv: kv[1])
     fig, ax = plt.subplots(figsize=(10, 6.5))
-    colors = [GREEN if v > 0 else RED for _, v in combined]
+    # Diverging = two hues from the deck palette (navy up, gold down), not
+    # red/green: the deck's Color test is "purposeful AND accessible", and
+    # sign is already encoded redundantly by position around the zero line.
+    colors = [NAVY if v > 0 else GOLD for _, v in combined]
     ax.barh([d[:36] for d, _ in combined], [v for _, v in combined], color=colors, edgecolor="white")
     ax.axvline(0, color=GRAY70, linewidth=1)
+    span = max(abs(v) for _, v in combined)
+    for i, (_, v) in enumerate(combined):
+        off = 0.06 * span * (1 if v >= 0 else -1)
+        ax.text(v + off, i, f"{v:+.1f}", va="center",
+                ha="left" if v >= 0 else "right", fontsize=8, color=GRAY70)
+    ax.set_xlim(-span * 1.18, span * 1.18)
     style(ax, xlabel="Mean session-over-session change (questions/session)")
     ax.set_title(f"{combined[-1][0].replace(' Department', '')} gains attention fastest "
                  f"(+{combined[-1][1]:.1f}/session); "
@@ -275,7 +304,7 @@ def main():
     overall, dept_summary, _records = compute_layer4(rows, extracted)
 
     topq = list(dept_summary)[:12]
-    fig, ax = plt.subplots(figsize=(12, 7))
+    fig, ax = plt.subplots(figsize=(12, 7.8))
     bands = ["brief", "standard", "detailed", "very_detailed"]
     bottom = np.zeros(len(topq))
     for band in bands:
@@ -283,10 +312,12 @@ def main():
         totals = np.array([dept_summary[d]["n_replies"] for d in topq], dtype=float)
         pct = np.divide(vals, totals, out=np.zeros_like(vals, dtype=float),
                         where=totals > 0) * 100
-        ax.bar([d[:28] for d in topq], pct, bottom=bottom, label=band,
-               color=SUBST_COLORS[band], edgecolor="white")
+        ax.bar([d[:28] for d in topq], pct, bottom=bottom,
+                   label=band.replace("_", " "),
+                   color=SUBST_COLORS[band], edgecolor="white")
         bottom += pct
-    ax.legend(frameon=False, fontsize=9, title="Reply length")
+    ax.legend(frameon=False, fontsize=9, title="Reply detail band (ordered)",
+              loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=4)
     ax.tick_params(axis="x", rotation=30, labelsize=8)
     style(ax, ylabel="% of coded replies")
     det = (overall["substantiveness"].get("detailed", 0)
@@ -334,6 +365,8 @@ def main():
                 Patch(color=RED, label="<80% covered")]
     labels += ["≥99% covered", "80–99% covered", "<80% covered"]
     ax.legend(handles, labels, frameon=False, fontsize=9, ncol=2)
+    for i, c in enumerate(cov):
+        ax.text(i, c + 1.5, f"{c:.0f}", ha="center", fontsize=8, color=GRAY70)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="% questions with a signed reply")
     ax.set_ylim(0, 105)
@@ -349,6 +382,10 @@ def main():
     keys = sorted(res, key=lambda k: -res[k])
     ax.bar(keys, [res[k] for k in keys],
            color=[TRAJ_COLORS.get(k, GRAY40) for k in keys], edgecolor="white")
+    for i, k in enumerate(keys):
+        ax.text(i, res[k] + 0.6, f"{res[k]} ({100 * res[k] / sum(res.values()):.0f}%)",
+                ha="center", fontsize=9, color=GRAY70)
+    ax.set_ylim(0, max(res.values()) * 1.16)
     style(ax, ylabel="Recurring families")
     ax.tick_params(axis="x", rotation=20, labelsize=9)
     ax.set_title(f"{res.get('stalled', 0)} of {sum(res.values())} recurring subjects "
@@ -392,6 +429,11 @@ def main():
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.bar(slabels, star, label="Starred", color=NAVY, edgecolor="white")
     ax.bar(slabels, unstar, bottom=star, label="Unstarred", color=GOLD, edgecolor="white")
+    for i, (s, u) in enumerate(zip(star, unstar)):
+        if s + u:
+            ax.text(i, s + u + 5, f"{s + u} ({100 * s / (s + u):.0f}% starred)",
+                    ha="center", fontsize=8, color=GRAY70)
+    ax.set_ylim(0, max((s + u for s, u in zip(star, unstar)), default=1) * 1.16)
     ax.legend(frameon=False, fontsize=9)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="Questions")
@@ -528,23 +570,47 @@ def main():
     stage_depts = [d for d, _ in
                    sorted(((d, v) for d, v in dept_summary.items()),
                           key=lambda kv: -kv[1]["n_replies"])[:10]]
-    stage_colors = {"None evidenced": GRAY40, "Concept/Proposal": "#D6C9A8",
-                    "Administrative Processing": GOLD, "Sanction/Funding": AMBER,
-                    "Approval": "#AF7AC5", "Procurement": "#5DADE2",
-                    "Execution/Award": TEAL, "Implementation": "#1E8449",
-                    "Completion": GREEN}
+    # Ordered variable (delivery stage progresses) -> ordered single-hue
+    # ramp; "no stage evidenced" is the absence of evidence, so it wears
+    # neutral grey. The previous 9-hue rainbow was neither ordered nor
+    # colorblind-safe (deck: Mapping + Color).
+    stage_colors = {"None evidenced": GRAY40, "Concept/Proposal": "#DCE6F2",
+                    "Administrative Processing": "#B8CCE4", "Sanction/Funding": "#94AFCF",
+                    "Approval": "#6F92BA", "Procurement": "#4A75A5",
+                    "Execution/Award": "#2A5890", "Implementation": TEAL,
+                    "Completion": "#146B4B"}
     fig, ax = plt.subplots(figsize=(12, 7))
     bottom = np.zeros(len(stage_depts))
-    for stage in stage_order:
-        vals = np.array([dept_summary[d]["stage_distribution"].get(stage, 0)
-                         for d in stage_depts])
+    # Mute non-essential series: only the stages carrying real mass get
+    # their own band; the thin tail is summed into one honest "Other
+    # stages" row (deck: Density - appropriate aggregation).
+    _tot = overall["stage_distribution"]
+    _n_coded = overall["n_coded"] or 1
+    _major = sorted((s for s in stage_order if s != "None evidenced"),
+                    key=lambda s: _tot.get(s, 0), reverse=True)[:3]
+    _major = [s for s in _major if _tot.get(s, 0) / _n_coded >= 0.02]
+    _minor = [s for s in stage_order if s != "None evidenced" and s not in _major]
+    bands = ["None evidenced"] + _major + ["Other stages"]
+    band_color = {**{s: stage_colors[s] for s in ["None evidenced"] + _major},
+                  "Other stages": "#C9D4E0"}
+    for stage in bands:
+        if stage == "Other stages":
+            vals = np.array([sum(dept_summary[d]["stage_distribution"].get(s, 0)
+                                for s in _minor) for d in stage_depts], dtype=float)
+        else:
+            vals = np.array([dept_summary[d]["stage_distribution"].get(stage, 0)
+                             for d in stage_depts], dtype=float)
         totals = np.array([dept_summary[d]["n_replies"] for d in stage_depts], dtype=float)
         pcts = np.divide(vals, totals, out=np.zeros_like(vals, dtype=float),
                          where=totals > 0) * 100
+        label = (f"Other stages ({len(_minor)}: "
+                 f"{', '.join(s.split('/')[0] for s in _minor)})" if stage == "Other stages"
+                 else stage)
         ax.bar([shorten(d, width=26, placeholder="…") for d in stage_depts], pcts,
-               bottom=bottom, label=stage, color=stage_colors[stage], edgecolor="white")
+               bottom=bottom, label=label, color=band_color[stage], edgecolor="white")
         bottom += pcts
-    ax.legend(frameon=False, fontsize=8, ncol=3)
+    ax.legend(frameon=False, fontsize=8, ncol=2,
+              loc="upper center", bbox_to_anchor=(0.5, -0.18))
     ax.tick_params(axis="x", rotation=30, labelsize=8)
     style(ax, ylabel="% of coded replies")
     stage_overall = overall["stage_distribution"]
