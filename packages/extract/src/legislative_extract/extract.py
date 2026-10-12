@@ -224,6 +224,15 @@ def split_reply(words, width, height=0, side="right"):
         # A short box crossing the split means continuous full-width text
         # (titles, unwrapped lines): skip the line. Tall crossing boxes are
         # table cells whose edges sit near the gutter: assign by center.
+        #
+        # A tempting relaxation (apply the skip only to 1-3 box lines, or
+        # test full-width spans per line) was validated corpus-wide and
+        # rejected: it changed 495 of 577 native-path replies with gains
+        # and losses mixed. Word-level native layers wrap across the
+        # split routinely, so neither variant separates real reply lines
+        # from full-width text reliably. The conservative rule stands;
+        # the 13 records it refuses are documented in
+        # data/review/FLAGGED_EMPTY.md instead.
         if any(w[0] < split < w[2] and (w[3] - w[1]) < 0.02 * height for w in line):
             continue
         text = " ".join(w[4] for w in line)
