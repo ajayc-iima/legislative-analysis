@@ -32,7 +32,9 @@ matplotlib.use("Agg")
 matplotlib.rcParams["svg.fonttype"] = "none"
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import to_hex
 from matplotlib.patches import Patch
+from matplotlib.transforms import Bbox
 from textwrap import shorten
 
 REPO = Path(__file__).resolve().parent.parent
@@ -63,6 +65,102 @@ TRAJ_COLORS = {"resolved": NAVY, "progressing": "#4A75A5", "mixed": GRAY40,
 
 OUT = REPO / "output/charts"
 MANIFEST = []
+
+# ── One labelling policy for the whole suite ────────────────────────────────
+# Labelling is not decoration: it is the reader's only way to read exact
+# values off a chart. The rule is uniform across all 21 figures, and every
+# figure that applies a cut says so in its caption.
+#   * <= FULL_LABEL_MAX marks  -> label EVERY mark
+#   * more marks               -> label by a stated, uniform cut
+#     (extremes on each axis for scatters; segments large enough to hold
+#     text for stacked bars; tail bins of a histogram)
+LABEL_MIN_SEGMENT_PCT = 8.0    # stacked segment must be this tall to be labelled
+FULL_LABEL_MAX = 30             # above this, scatters label their extremes
+EXTREME_LABELS = 5              # per axis, for dense scatters
+POLICY_ALL = "Every mark is labelled."
+POLICY_EXTREMES = (f"Labelling: the {EXTREME_LABELS} most active members and the "
+                    "3 broadest (overlap removed) — too many bubbles to name "
+                    "them all.")
+POLICY_SEGMENTS = (f"Labels inside segments >= {LABEL_MIN_SEGMENT_PCT:g}% of a "
+                   f"column; smaller segments are left to the axis. ")
+
+
+def label_points(ax, xs, ys, names, priority_idx=None, width=26, fontsize=8,
+                 pad_px=4):
+    """Label scatter points so that no two labels overlap.
+
+    `priority_idx` (the volume/breadth or axis leaders) is placed first and
+    always kept; every other point is added only if its real, measured text
+    box clears every label already placed. Measuring the rendered box (rather
+    than guessing a data-space radius) is what keeps long department names in
+    a tight cluster from stacking on top of one another. Deterministic: the
+    same data always yields the same labels, so figures rebuild identically.
+    """
+    n = len(xs)
+    if not n:
+        return 0
+    fig = ax.figure
+    fig.canvas.draw()                       # realise transforms before measuring
+    renderer = fig.canvas.get_renderer()
+    boxes, kept = [], []
+    for i in dict.fromkeys(list(priority_idx or []) + list(range(n))):
+        ann = ax.annotate(f"{shorten(names[i], width=width, placeholder='…')} "
+                          f"({xs[i]:g}, {ys[i]:g})",
+                          (xs[i], ys[i]), fontsize=fontsize, color=GRAY70,
+                          xytext=(8, 4), textcoords="offset points", zorder=6)
+        bb = ann.get_window_extent(renderer=renderer)
+        box = Bbox.from_extents(bb.x0 - pad_px, bb.y0 - pad_px,
+                                bb.x1 + pad_px, bb.y1 + pad_px)
+        if any(box.overlaps(other) for other in boxes):
+            ann.remove()
+        else:
+            boxes.append(box)
+            kept.append(i)
+    return len(kept)
+
+
+def label_stacked(ax, xs_labels, stack_vals, totals, series_names, colors,
+                  min_pct=LABEL_MIN_SEGMENT_PCT):
+    """Label stacked segments that are large enough to hold text.
+
+    Geometry uses the axis' own units (counts or %); the min_pct gate is
+    relative to each column's total, so the rule reads the same whatever
+    the axis shows.
+    """
+    bottom = np.zeros(len(xs_labels))
+    for vals, name, color in zip(stack_vals, series_names, colors):
+        arr = np.array(vals, dtype=float)
+        tot = np.array(totals, dtype=float)
+        for i, v in enumerate(arr):
+            share = 100 * v / tot[i] if tot[i] else 0
+            if share >= min_pct:
+                y = bottom[i] + v / 2
+                ax.text(xs_labels[i], y, f"{v:,.0f}" if v >= 10 else f"{v:.0f}",
+                        ha="center", va="center", fontsize=8,
+                        color=label_ink(color))
+        bottom += arr
+
+
+def _luminance(color):
+    """WCAG 2.1 relative luminance of a #rrggbb fill."""
+    def chan(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b)
+
+
+def contrast_ratio(ink, bg):
+    hi, lo = sorted((_luminance(ink), _luminance(bg)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def label_ink(bg):
+    """Ink for text sitting on `bg`, chosen by measured contrast rather than
+    a guessed 'is this dark?'. Mid-greys get dark ink, not grey - grey on
+    grey is the most common way a value label quietly becomes unreadable."""
+    best = max(("#FFFFFF", "#141414"), key=lambda ink: contrast_ratio(ink, bg))
+    return best if contrast_ratio(best, bg) >= 4.5 else "#141414"
 
 
 def style(ax, xlabel="", ylabel=""):
@@ -161,7 +259,7 @@ def main():
         for j in range(len(order)):
             if mat[i][j]:
                 ax.text(j, i, mat[i][j], ha="center", va="center", fontsize=7,
-                        color="white" if mat[i][j] > mat.max() / 2 else GRAY70)
+                        color=label_ink(to_hex(im.cmap(im.norm(mat[i][j])))))
     fig.colorbar(im, ax=ax, label="Questions")
     leaders = Counter()
     for j in range(len(order)):
@@ -223,8 +321,9 @@ def main():
         xs = [order_str.index(s) for s in f["sessions"] if s in order_str]
         ax.scatter(xs, [i] * len(xs), s=70, color=NAVY, zorder=3)
     ax.set_yticks(range(len(top)))
-    ax.set_yticklabels([shorten(f["subject"], width=54, placeholder="…") for f in top],
-                       fontsize=8)
+    ax.set_yticklabels([f"{shorten(f['subject'], width=48, placeholder='…')}  ·  "
+                        f"{len(f['sessions'])} sittings"
+                        for f in top], fontsize=8)
     ax.set_xticks(range(len(order)))
     ax.set_xticklabels(slabels, rotation=45, ha="right", fontsize=8)
     ax.grid(axis="x", color=GRAY15, linewidth=0.6, linestyle="--", alpha=0.9)
@@ -243,35 +342,53 @@ def main():
     order_d = ["Information", "Action", "Explanation", "Accountability"]
     fig, ax = plt.subplots(figsize=(12, 7))
     bottom = np.zeros(len(top12))
+    stack_vals = []
     for dtype in order_d:
         vals = np.array([agg[d][dtype] for d in top12])
+        stack_vals.append(vals)
         ax.bar([t[:30] for t in top12], vals, bottom=bottom, label=dtype,
                color=DEMAND_COLORS[dtype], edgecolor="white")
         bottom += vals
-    ax.legend(frameon=False, fontsize=9)
+    label_stacked(ax, range(len(top12)), stack_vals,
+                  [sum(agg[d].values()) for d in top12], order_d,
+                  [DEMAND_COLORS[d] for d in order_d])
+    ax.legend(frameon=False, fontsize=9, loc="upper center",
+              bbox_to_anchor=(0.5, -0.22), ncol=4)
     ax.tick_params(axis="x", rotation=30, labelsize=8)
     style(ax, ylabel="Questions")
     ax.set_title(f"Information is the demand in {100 * layers['layer3_demands']['demand_counts']['Information'] / total:.0f}% "
                  f"of questions; action demands cluster in works departments",
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "06-demand-by-dept", "Demand types", "Pillar 2",
-         "What each question demands: data, reasons, action, or follow-up. Source: layer3_demands.json.")
+         "What each question demands: data, reasons, action, or follow-up. "
+         f"Segments >= {LABEL_MIN_SEGMENT_PCT:g}% of a column are labelled. "
+         "Source: layer3_demands.json.")
 
     # ── 7. Session volume trend + assembly shading ──
     fig, ax = plt.subplots(figsize=(12, 5))
     qs = [s["questions"] for s in sessions]
     ax.plot(sess_labels, qs, marker="o", color=NAVY, linewidth=2)
     ax.fill_between(sess_labels, qs, alpha=0.08, color=NAVY)
+    # Headroom first, then labels with a halo: a value label crossed by the
+    # line (or by an annotation) is a value the reader cannot read.
+    top = max(qs)
+    ax.set_ylim(0, top * 1.24)
+    halo = dict(facecolor="white", alpha=0.9, edgecolor="none", pad=0.8)
+    for xi, q in enumerate(qs):
+        ax.annotate(f"{q}", (xi, q), textcoords="offset points", xytext=(0, 8),
+                    ha="center", fontsize=8, color=GRAY70, bbox=halo, zorder=5)
     tenth_n = sum(1 for s in sessions if "Tenth" in s["assembly"])
     ax.axvspan(-0.5, tenth_n - 0.5, color=GOLD, alpha=0.10)
-    ax.text(1, max(qs) * 0.95, "10th Assembly", fontsize=9, color=GRAY70)
-    ax.text(tenth_n + 1, max(qs) * 0.95, "11th Assembly", fontsize=9, color=GRAY70)
+    ax.text(1, top * 1.20, "10th Assembly", fontsize=9, color=GRAY70, va="top")
+    ax.text(tenth_n + 1, top * 1.20, "11th Assembly", fontsize=9, color=GRAY70,
+            va="top")
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     style(ax, ylabel="Questions")
     ax.set_title(f"Question volume peaked at {max(qs)} in "
                  f"{sess_labels[qs.index(max(qs))]}", fontsize=13, color=NAVY, pad=12)
     save(fig, "07-session-trend", "Volume trend", "Pillar 2",
-         "Session-level question volume with the assembly transition shaded. Source: stats.json.")
+         f"Session-level question volume with the assembly transition shaded; "
+         f"all {len(qs)} points labelled. Source: stats.json.")
 
     # ── 8. Department trend slopes ──
     trends = layers["layer6_trends"]
@@ -307,15 +424,22 @@ def main():
     fig, ax = plt.subplots(figsize=(12, 7.8))
     bands = ["brief", "standard", "detailed", "very_detailed"]
     bottom = np.zeros(len(topq))
+    subst_pcts = []
+    subst_totals = []
     for band in bands:
         vals = np.array([dept_summary[d]["substantiveness"].get(band, 0) for d in topq])
         totals = np.array([dept_summary[d]["n_replies"] for d in topq], dtype=float)
         pct = np.divide(vals, totals, out=np.zeros_like(vals, dtype=float),
                         where=totals > 0) * 100
+        subst_pcts.append(pct)
+        subst_totals.append(totals)
         ax.bar([d[:28] for d in topq], pct, bottom=bottom,
                    label=band.replace("_", " "),
                    color=SUBST_COLORS[band], edgecolor="white")
         bottom += pct
+    label_stacked(ax, range(len(topq)), subst_pcts,
+                  [100] * len(topq), bands, [SUBST_COLORS[b] for b in bands],
+                  min_pct=LABEL_MIN_SEGMENT_PCT)
     ax.legend(frameon=False, fontsize=9, title="Reply detail band (ordered)",
               loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=4)
     ax.tick_params(axis="x", rotation=30, labelsize=8)
@@ -326,7 +450,9 @@ def main():
     ax.set_title(f"{det_pct:.0f}% of coded replies are detailed or very detailed "
                  f"(n={overall['n_coded']})", fontsize=13, color=NAVY, pad=12)
     save(fig, "09-substantiveness", "Response quality", "Pillar 2",
-         f"Length bands over {overall['n_coded']} OCR-coded replies; regenerates as extraction accrues.")
+         f"Length bands over {overall['n_coded']} OCR-coded replies; regenerates "
+         f"as extraction accrues. Segments >= {LABEL_MIN_SEGMENT_PCT:g}% of a "
+         "column are labelled; smaller bands are left to the axis.")
 
     fig, ax = plt.subplots(figsize=(9, 7))
     xs = [dept_summary[d]["assurance_weight_mean"] for d in dept_summary]
@@ -334,23 +460,25 @@ def main():
     ns = [dept_summary[d]["n_replies"] for d in dept_summary]
     sizes = [20 + 60 * n / max(ns) for n in ns]
     ax.scatter(xs, ys, s=sizes, color=NAVY, alpha=0.65, edgecolors="white")
-    labelled = set()
-    for key, idx in (("evasion", int(np.argsort(ys)[-1])),
-                     ("assurance", int(np.argsort(xs)[-1]))):
-        d = list(dept_summary)[idx]
-        labelled.add(d)
-    for i, d in enumerate(dept_summary):
-        if d in labelled:
-            ax.annotate(shorten(d, width=26, placeholder="…"),
-                        (xs[i], ys[i]), fontsize=8, color=GRAY70,
-                        xytext=(6, 6 if i % 2 == 0 else -12),
-                        textcoords="offset points")
+    n_pts = len(xs)
+    prio = (sorted(range(n_pts), key=lambda i: xs[i])[-EXTREME_LABELS:]
+            + sorted(range(n_pts), key=lambda i: xs[i])[:2]
+            + sorted(range(n_pts), key=lambda i: ys[i])[-EXTREME_LABELS:])
+    ax.set_xlim(min(xs) - 0.03 * ((max(xs) - min(xs)) or 1),
+                max(xs) + 0.16 * ((max(xs) - min(xs)) or 1))
+    ax.set_ylim(min(ys) - 0.05 * ((max(ys) - min(ys)) or 1),
+                max(ys) + 0.07 * ((max(ys) - min(ys)) or 1))
+    n_lab = label_points(ax, xs, ys, list(dept_summary),
+                         priority_idx=prio, width=22)
     style(ax, xlabel="Assurance-signal weight (mean)", ylabel="Evasion-signal weight (mean)")
     n_assure = sum(1 for a, e in zip(xs, ys) if a > e)
     ax.set_title(f"Assurance language outweighs evasion in {n_assure} of "
                  f"{len(xs)} departments", fontsize=13, color=NAVY, pad=12)
     save(fig, "10-assurance-evasion", "Response signals", "Pillar 2",
-         "Bubble size = coded replies. Ported signal registries; weights, not scores.")
+         "Bubble size = coded replies. Labels: assurance and evasion extremes "
+         f"first, then every department whose label fits without collision "
+         f"({n_lab} of {n_pts} labelled). Ported signal registries; weights, "
+         "not scores.")
 
     # ── 11. Reply coverage by session ──
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -374,7 +502,7 @@ def main():
     ax.set_title(f"Reply coverage hit 100% in {full} of {len(cov)} sessions",
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "11-coverage", "Reply coverage", "Pillar 2",
-         "Whether a signed reply PDF exists per session. Source: stats.json.")
+         "Whether a signed reply PDF exists per session; every bar labelled. Source: stats.json.")
 
     # ── 12. Resolution trajectories (bar until Sankey is meaningful) ──
     res = layers["layer5_resolution"]["resolution_counts"]
@@ -429,6 +557,11 @@ def main():
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.bar(slabels, star, label="Starred", color=NAVY, edgecolor="white")
     ax.bar(slabels, unstar, bottom=star, label="Unstarred", color=GOLD, edgecolor="white")
+    # Stacked column like 06/09/19/20: segments big enough to hold text are
+    # labelled inside, and the total plus starred share rides above.
+    label_stacked(ax, range(len(star)), [star, unstar],
+                  [s + u for s, u in zip(star, unstar)],
+                  ["Starred", "Unstarred"], [NAVY, GOLD])
     for i, (s, u) in enumerate(zip(star, unstar)):
         if s + u:
             ax.text(i, s + u + 5, f"{s + u} ({100 * s / (s + u):.0f}% starred)",
@@ -441,24 +574,43 @@ def main():
     ax.set_title(f"Starred (oral) questions outweigh unstarred "
                  f"{star_total:,} to {unstar_total:,}", fontsize=13, color=NAVY, pad=12)
     save(fig, "14-starred", "Question types", "Pillar 2",
-         "Starred (oral) vs Unstarred (written) mix per session. Source: CSV Category field.")
+         "Starred (oral) vs Unstarred (written) mix per session; every column "
+         "labelled with its total and starred share, and segments >= "
+         f"{LABEL_MIN_SEGMENT_PCT:g}% of a column labelled inside. "
+         "Source: CSV Category field.")
 
     # ── 15. MLA activity bubble ──
     mlas = stats["mlas"]
-    fig, ax = plt.subplots(figsize=(10, 7))
+    n_points = len(mlas)
+    fig, ax = plt.subplots(figsize=(11, 7.5))
     xs = [m["questions"] for m in mlas]
     ys = [m["departments"] for m in mlas]
     ax.scatter(xs, ys, s=[10 + 12 * q for q in xs], color=TEAL, alpha=0.6, edgecolors="white")
-    for m in mlas[:8]:
-        ax.annotate(m["mla"].split()[-1], (m["questions"], m["departments"]),
-                    fontsize=9, color=GRAY70)
+    # Bubbles are sized by volume, so the volume and breadth leaders are named
+    # first; every other bubble is named only when its label fits without
+    # colliding - a fixed, rebuild-stable rule.
+    n_points = len(mlas)
+    by_x = sorted(range(n_points), key=lambda i: xs[i])
+    by_y = sorted(range(n_points), key=lambda i: ys[i])
+    priority = by_x[-EXTREME_LABELS:] + by_y[-3:]
+    ax.set_xlim(min(xs) - 0.06 * ((max(xs) - min(xs)) or 1),
+                max(xs) + 0.22 * ((max(xs) - min(xs)) or 1))
+    ax.set_ylim(min(ys) - 0.07 * ((max(ys) - min(ys)) or 1),
+                max(ys) + 0.10 * ((max(ys) - min(ys)) or 1))
+    n_lab = label_points(ax, xs, ys,
+                         [f"{m['mla'].split()[-1]}" for m in mlas],
+                         priority_idx=priority, width=18)
     style(ax, xlabel="Questions asked", ylabel="Departments questioned (breadth)")
     top_m = mlas[0]
     ax.set_title(f"{top_m['mla']} asks the most ({top_m['questions']}) with the "
                  f"widest departmental reach ({top_m['departments']} departments)",
                  fontsize=13, color=NAVY, pad=12)
+    n_points = len(mlas)
     save(fig, "15-mla-bubble", "Asker activity", "Pillar 1",
-         "Each bubble = one MLA; size = questions. Top-8 surnames labelled. Source: stats.json.")
+         f"Each bubble = one of the {n_points} most active members; size = "
+         "questions. Labels: the 5 most active and 3 broadest first, then "
+         f"every other bubble whose label fits without collision ({n_lab} "
+         "labelled). Source: stats.json.")
 
     # ── 16. Theme × department heatmap ──
     tbd = layers["layer1_themes"]["department_by_theme"]
@@ -481,7 +633,7 @@ def main():
         for j in range(len(top_depts)):
             if hmat[i][j]:
                 ax.text(j, i, hmat[i][j], ha="center", va="center", fontsize=7,
-                        color="white" if hmat[i][j] > hmat.max() / 2 else GRAY70)
+                        color=label_ink(to_hex(im.cmap(im.norm(hmat[i][j])))))
     fig.colorbar(im, ax=ax, label="Questions")
     # largest single cell for the message title
     mi, mj = np.unravel_index(int(np.argmax(hmat)), hmat.shape)
@@ -519,11 +671,18 @@ def main():
             bx.append(budget)
             by.append(q_by_dept[dept])
             blabels.append(dept)
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=(11, 7))
     ax.scatter(bx, by, s=110, color=NAVY, alpha=0.7, edgecolors="white", zorder=3)
-    for x, y, label in zip(bx, by, blabels):
-        ax.annotate(shorten(label, width=24, placeholder="…"), (x, y),
-                    fontsize=8, color=GRAY70, xytext=(6, 4), textcoords="offset points")
+    ax.set_xlim(min(bx) - 0.06 * ((max(bx) - min(bx)) or 1),
+                max(bx) + 0.12 * ((max(bx) - min(bx)) or 1))
+    ax.set_ylim(min(by) - 0.09 * ((max(by) - min(by)) or 1),
+                max(by) + 0.09 * ((max(by) - min(by)) or 1))
+    # Largest budgets and the most-questioned departments first; any other
+    # department is named only if its label clears the ones already placed.
+    n_pts = len(bx)
+    prio = (sorted(range(n_pts), key=lambda i: bx[i])[-EXTREME_LABELS:]
+            + sorted(range(n_pts), key=lambda i: by[i])[-3:])
+    n_lab = label_points(ax, bx, by, blabels, priority_idx=prio, width=24)
     style(ax, xlabel="Budget allocation 2025–26 (₹ crore)", ylabel="Questions (2021–2026)")
     big_b = blabels[int(np.argmax(bx))]
     big_b_q = by[int(np.argmax(bx))]
@@ -533,7 +692,10 @@ def main():
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "18-budget-scatter", "Scrutiny vs resources", "Pillar 1",
          "Single-year budget vs multi-year questions (limitation noted); "
-         "per-100-crore table in the dashboard. Sources: DEPT_BUDGET, CSV.")
+         f"per-100-crore table in the dashboard. Labels: budget and "
+         f"questioning leaders first, then every department whose label fits "
+         f"without collision ({n_lab} of {n_pts} labelled). "
+         "Sources: DEPT_BUDGET, CSV.")
 
     # ── 19. Opposition intensity by session ──
     bbs = layers["layer3_demands"]["bloc_by_session"]
@@ -541,14 +703,24 @@ def main():
     ruling = [bbs[s]["counts"]["Ruling"] for s in blabels]
     opposition = [bbs[s]["counts"]["Opposition"] for s in blabels]
     unknown = [bbs[s]["counts"]["Unknown"] for s in blabels]
-    fig, ax = plt.subplots(figsize=(12, 5.5))
+    fig, ax = plt.subplots(figsize=(12, 6))
     ax.bar(slabels, ruling, label="Ruling", color=NAVY, edgecolor="white")
     ax.bar(slabels, opposition, bottom=ruling, label="Opposition", color=GOLD, edgecolor="white")
     ax.bar(slabels, unknown, bottom=np.array(ruling) + np.array(opposition),
            label="Unknown", color=GRAY40, edgecolor="white")
+    # Same rule as every other stacked column chart: segments big enough to
+    # hold text are labelled inside; the bloc share rides above the column.
+    opp_stack = [ruling, opposition, unknown]
+    opp_colors = [NAVY, GOLD, GRAY40]
+    label_stacked(ax, range(len(blabels)), opp_stack,
+                  [r + o + u for r, o, u in zip(ruling, opposition, unknown)],
+                  ["Ruling", "Opposition", "Unknown"], opp_colors)
+    # Headroom before the labels, so the tallest column's share cannot run
+    # into the title.
+    ax.set_ylim(0, max(r + o + u for r, o, u in zip(ruling, opposition, unknown)) * 1.16)
     for i, s in enumerate(blabels):
         pct = bbs[s]["opposition_pct"]
-        ax.text(i, ruling[i] + opposition[i] + unknown[i] + 4, f"{pct:.0f}% opp",
+        ax.text(i, ruling[i] + opposition[i] + unknown[i] + 6, f"{pct:.0f}% opp",
                 ha="center", fontsize=8, color=GRAY70)
     ax.legend(frameon=False, fontsize=9)
     ax.tick_params(axis="x", rotation=45, labelsize=8)
@@ -560,7 +732,9 @@ def main():
                  f"in {opp_led} of {len(blabels)} sessions",
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "19-opposition", "Opposition intensity", "Pillar 2",
-         "Asker bloc from MLA party records; counts only, no effectiveness claims. "
+         "Asker bloc from MLA party records; counts only, no effectiveness "
+         f"claims. Segments >= {LABEL_MIN_SEGMENT_PCT:g}% of a column are "
+         "labelled; the opposition share sits above each column. "
          "Source: layer3_demands.json.")
 
     # ── 20. Execution stages by department ──
@@ -593,6 +767,7 @@ def main():
     bands = ["None evidenced"] + _major + ["Other stages"]
     band_color = {**{s: stage_colors[s] for s in ["None evidenced"] + _major},
                   "Other stages": "#C9D4E0"}
+    stage_pcts, stage_totals = {}, []
     for stage in bands:
         if stage == "Other stages":
             vals = np.array([sum(dept_summary[d]["stage_distribution"].get(s, 0)
@@ -608,7 +783,12 @@ def main():
                  else stage)
         ax.bar([shorten(d, width=26, placeholder="…") for d in stage_depts], pcts,
                bottom=bottom, label=label, color=band_color[stage], edgecolor="white")
+        stage_pcts[stage] = pcts
+        stage_totals.append(totals)
         bottom += pcts
+    label_stacked(ax, range(len(stage_depts)), list(stage_pcts.values()),
+                  stage_totals[0], bands,
+                  [band_color[b] for b in bands])
     ax.legend(frameon=False, fontsize=8, ncol=2,
               loc="upper center", bbox_to_anchor=(0.5, -0.18))
     ax.tick_params(axis="x", rotation=30, labelsize=8)
@@ -623,18 +803,33 @@ def main():
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "20-exec-stages", "Execution stages", "Pillar 2",
          "Highest evidenced lifecycle stage per reply (negation-aware). "
-         f"n={overall['n_coded']} coded replies.")
+         f"n={overall['n_coded']} coded replies. Segments >= "
+         f"{LABEL_MIN_SEGMENT_PCT:g}% of a column are labelled; smaller bands "
+         "are left to the axis.")
 
     # ── 21. Latency histogram ──
     lats_all = [x["latency"] for x in _records if x["latency"] is not None]
     fig, ax = plt.subplots(figsize=(10, 5.5))
     if lats_all:
         bins = list(range(0, min(max(lats_all) + 5, 125), 5))
-        ax.hist(lats_all, bins=bins, color=NAVY, edgecolor="white", zorder=3)
+        counts, _, _ = ax.hist(lats_all, bins=bins, color=NAVY, edgecolor="white",
+                               zorder=3)
+        # Label the bins that carry the mass; the thin tail is read off the
+        # axis (stated in the caption). Headroom + halo so a bin count is
+        # never crossed by the median rule.
+        tallest = counts.max() if len(counts) else 0
+        if tallest:
+            ax.set_ylim(0, tallest * 1.18)
+        halo = dict(facecolor="white", alpha=0.9, edgecolor="none", pad=0.8)
+        for left, c in zip(bins[:-1], counts):
+            if tallest and c / tallest >= 0.10:
+                ax.text(left + 2.5, c, f"{int(c)}", ha="center", va="bottom",
+                        fontsize=8, color=GRAY70, bbox=halo, zorder=6)
         med = statistics.median(lats_all)
-        ax.axvline(med, color=RED, linestyle="--", linewidth=2,
+        ax.axvline(med, color=RED, linestyle="--", linewidth=2, zorder=2,
                    label=f"median {med} days")
-        ax.axvline(30, color=AMBER, linestyle=":", linewidth=2, label="30-day mark")
+        ax.axvline(30, color=AMBER, linestyle=":", linewidth=2, zorder=2,
+                   label="30-day mark")
         ax.legend(frameon=False, fontsize=9)
         over30 = 100 * sum(1 for d in lats_all if d > 30) / len(lats_all)
         ax.set_title(f"Median reply time: {med:g} days; "
@@ -644,7 +839,8 @@ def main():
         ax.set_title("How long replies take", fontsize=13, color=NAVY, pad=12)
     style(ax, xlabel="Days from submission to reply", ylabel="Replies")
     save(fig, "21-latency", "Reply latency", "Pillar 2",
-         "Trustworthy date pairs only; flagged pairs excluded but kept in data.")
+         "Trustworthy date pairs only; flagged pairs excluded but kept in data. "
+         "Bins holding >= 10% of the tallest bin are labelled.")
 
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, indent=2), encoding="utf-8")
     print(f"{len(MANIFEST)} charts -> {OUT}")
