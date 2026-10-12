@@ -21,6 +21,23 @@ from . import nvidia
 
 OCR_MODEL = "nvidia/nemotron-ocr-v1"
 NATIVE_MIN_CHARS = 200
+GIBBERISH_MAX_UNEXPECTED = 0.06
+# Characters expected in a trustworthy native text layer. A layer with more
+# symbol-soup than this is a broken font encoding (mojibake), not real text:
+# measured 0.14-0.19 on mojibake pages vs 0.00-0.01 on normal pages.
+_NATIVE_ALLOWED = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                      "0123456789 \t\n,.;:'\"()-\u2013\u2014/%\u20b9&?!")
+
+
+def looks_gibberish(text):
+    """True when a native text layer is font-encoding mojibake. Conservative:
+    a false positive only costs one OCR call; a false negative keeps the
+    status quo (flagged, untrusted layer unused... see page_data)."""
+    chars = [c for c in text if not c.isspace()]
+    if not chars:
+        return False
+    unexpected = sum(1 for c in chars if c not in _NATIVE_ALLOWED)
+    return unexpected / len(chars) > GIBBERISH_MAX_UNEXPECTED
 MAX_OCR_PAGES = 8
 PAUSE_SECONDS = 0.4
 
@@ -164,12 +181,14 @@ def split_reply(words, width, height=0, side="right"):
     every line straddles the split, so the column pass keeps nothing. When
     the right-side pass is empty, full lines above the footer are returned
     ONLY if the text demonstrably flows across the gutter (a majority of
-    lines straddle it, with enough characters). A left-column-only page
-    (question asked, no reply given) has no straddling lines and still
-    returns "", so question text is never mislabelled as reply. Residual
-    risk (documented): a page holding nothing but two long full-width
-    title lines would be taken as reply text; such pages are pathological
-    in reply PDFs and still carry their REVIEW flags for dates.
+    lines straddle it, with enough characters) — or a single straddling
+    line that reads as a sentence (lowercase letters, terminal punctuation),
+    which titles and banners never are. A left-column-only page (question
+    asked, no reply given) has no straddling lines and still returns "", so
+    question text is never mislabelled as reply. Residual risk (documented):
+    a page holding nothing but two long full-width title lines would be
+    taken as reply text; such pages are pathological in reply PDFs and still
+    carry their REVIEW flags for dates.
     """
     if not words:
         return ""
@@ -221,9 +240,18 @@ def split_reply(words, width, height=0, side="right"):
     n_chars = sum(len(w[4]) for line in flines for w in line)
     straddling = sum(1 for line in flines
                      if any(w[0] < split < w[2] for w in line))
-    if len(flines) >= 2 and n_chars >= 40 and straddling / len(flines) > 0.25:
+    flowing = bool(flines) and straddling / len(flines) > 0.25
+    single_sentence = (
+        len(flines) == 1 and straddling == 1
+        and _looks_sentence(" ".join(w[4] for w in flines[0])))
+    if n_chars >= 40 and flowing and (len(flines) >= 2 or single_sentence):
         return "\n".join(" ".join(w[4] for w in sorted(line)) for line in flines)
     return result
+
+
+def _looks_sentence(text):
+    """A sentence, not a title or banner: mixed case, terminal punctuation."""
+    return bool(re.search(r"[a-z]", text) and text.rstrip().endswith((".", "?", "!", ":")))
 
 
 FOOTER_CUT = re.compile(
@@ -309,10 +337,11 @@ def page_data(pdf_path, key, page, dpi=200):
     except Exception as exc:
         return "", "", "", False, f"unreadable: {exc}"
     native = " ".join(w[4] for w in raw)
-    if len(native.strip()) >= NATIVE_MIN_CHARS:
+    if len(native.strip()) >= NATIVE_MIN_CHARS and not looks_gibberish(native):
         words = [(w[0], w[1], w[2], w[3], w[4]) for w in raw]
         return (native, split_reply(words, width, height, side="left"),
                 split_reply(words, width, height), False, "")
+    # Unscanned page, or a native layer too corrupted to trust: OCR it.
     png = nvidia.render_page(pdf_path, page=page, dpi=dpi)
     ok, words, width, error = ocr_words(key, png)
     if not ok:

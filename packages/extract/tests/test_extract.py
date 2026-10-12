@@ -2,8 +2,8 @@
 
 from legislative_extract import nvidia
 from legislative_extract.extract import (cut_footer, find_dates, flag_date_issues,
-                                         parse_date, split_parts, split_reply,
-                                         squash_spaced_text)
+                                         looks_gibberish, parse_date, split_parts,
+                                         split_reply, squash_spaced_text)
 from legislative_extract.trial import ocr_text, score_text
 
 
@@ -256,6 +256,42 @@ def test_split_reply_single_column_stops_at_footer():
     assert split_reply(words, 612, 1000) == (
         "Reply-line-one-with-meaningful-content-here\n"
         "Reply-line-two-with-meaningful-content-here")
+
+
+def test_split_reply_single_sentence_line_kept():
+    # 10_11_US_964 regression: one straddling line that reads as a sentence
+    # is a reply, not a title.
+    words = [(200, 176, 553, 190,
+              "Sir, is as per Statement placed on the Table of the House.")]
+    assert split_reply(words, 612, 1000) == (
+        "Sir, is as per Statement placed on the Table of the House.")
+
+
+def test_split_reply_single_caps_line_stays_empty():
+    # long single straddling line, but all-caps with no terminal
+    # punctuation: a title, not a sentence.
+    words = [(120, 176, 600, 197,
+              "STARRED QUESTIONS TO BE ASKED BY SHRI GABRIEL WAHLANG")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_split_reply_single_unterminated_line_stays_empty():
+    # lowercase but no terminal punctuation: not sentence-shaped.
+    words = [(200, 176, 553, 190,
+              "Statement placed on the Table of the House today")]
+    assert split_reply(words, 612, 1000) == ""
+
+
+def test_looks_gibberish_flags_mojibake_layer():
+    # 11_3_S_2283 regression: broken font encoding, symbol-soup layer.
+    assert looks_gibberish(
+        "t®#EJ= -¥:.a aC= aC3 Cj C3 C3C3 aa iee C3 Cj in 8=,- C3 CY| "
+        "C> in d r` N r`d dC> lJ`) CO r` TI+ r` €5u T+ rl N")
+    assert not looks_gibberish(
+        "Sir, the Byrnihat - Shillong Line was sanctioned in the year "
+        "2010-2011. (ii) An amount of Rs. 45.5 crore was released.")
+    assert not looks_gibberish("")
+    assert not looks_gibberish("Memo No. Health.70/2021/43 Dated Shillong, 2021")
 
 
 def test_cut_footer_drops_memo_block():
