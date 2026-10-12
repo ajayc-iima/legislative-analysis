@@ -931,6 +931,11 @@ def main():
         "Unknown. Latency uses only trustworthy date pairs.</li>"
         "<li>Reply coverage before 2021 was 0–16%, which is why the window starts "
         "in 2021.</li>"
+        "<li>Reply texts retain reply-document headers (answering-minister "
+        "assignment, memo references) because they identify the source; "
+        "pages that mix bulletin/question material with answers are "
+        "quarantined to flagged-empty instead of stored "
+        "(<code>data/review/quarantine_list.csv</code>).</li>"
         "</ul></div>")
 
     # ══ Resolution · appendix ══
@@ -984,7 +989,10 @@ def main():
         "python scripts/build_compendium.py\n"
         "python scripts/build_charts.py\n"
         "python scripts/build_dashboard.py\n"
-        "python scripts/build_report.py</pre>")
+        "python scripts/build_report.py</pre>"
+        "<p class='note'>Extraction runs write to a run directory and are mirrored; "
+        "run <code>scripts/quarantine_mixed.py</code> after each extraction pass "
+        "and before this chain.</p>")
 
     add(f"<footer>Legislative Oversight in Meghalaya · evidence report · "
         f"generated {datetime.now():%d %B %Y, %H:%M} · {total:,} questions, "
