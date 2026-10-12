@@ -233,7 +233,15 @@ def split_reply(words, width, height=0, side="right"):
         # from full-width text reliably. The conservative rule stands;
         # the 13 records it refuses are documented in
         # data/review/FLAGGED_EMPTY.md instead.
-        if any(w[0] < split < w[2] and (w[3] - w[1]) < 0.02 * height for w in line):
+        # Native PDF word boxes on tall pages can be only slightly taller than
+        # 1% of the page.  A 2% cutoff therefore drops real reply lines whose
+        # first word starts just left of the gutter (the common Q/R table
+        # layout).  Keep the original protection for thin banner fragments
+        # unless the line has a real run of right-column words.
+        crossing = any(w[0] < split < w[2] for w in line)
+        right_words = [w for w in line if (w[0] + w[2]) / 2 >= split]
+        if (crossing and (line[0][3] - line[0][1]) < 0.02 * height
+                and len(right_words) < 2):
             continue
         text = " ".join(w[4] for w in line)
         if FOOTER_MARK.match(text):
@@ -241,7 +249,9 @@ def split_reply(words, width, height=0, side="right"):
         if QUESTION_HEAD.search(text):
             continue
         if side == "right":
-            kept = [w[4] for w in line if (w[0] + w[2]) / 2 >= split
+            kept = [w[4] for w in line if (
+                        (w[0] + w[2]) / 2 >= split
+                        or (w[0] < split < w[2] and w[0] >= 0.4 * width))
                     and (w[1] + w[3]) / 2 < cutoff]
         else:
             kept = [w[4] for w in line if (w[0] + w[2]) / 2 < split
@@ -312,6 +322,19 @@ def cut_footer(text):
     """Drop a trailing memo/signature block leaking into column text."""
     match = FOOTER_CUT.search(text or "")
     return text[:match.start()].strip() if match else (text or "").strip()
+
+
+REPLY_HEADER_LINE = re.compile(
+    r"^\s*(?:SESSION OF THE MEGHALAYA|MEGHALAYA LEGISLATIVE ASSEMBLY|"
+    r"ASSEMBLY,?\s*\d{4}|REPLIES|SHRI\..*|MINISTER.*TO REPLY)\s*$",
+    re.I,
+)
+
+
+def cut_reply_header(text):
+    """Remove the Q/R page header and minister assignment from reply text."""
+    lines = [line.strip() for line in (text or "").splitlines()]
+    return "\n".join(line for line in lines if line and not REPLY_HEADER_LINE.match(line)).strip()
 
 
 LABEL = re.compile(r"(?m)^\s*\(?([a-z])\)\s+")
@@ -446,7 +469,7 @@ def extract_pdf(pdf_path, key, dpi=200, session_date=""):
         needs_review.append(f"unparseable submission date: {submission_raw[:40]!r}")
     sitting = parse_session_date(session_date)
     flag_date_issues(reply_date, submission_date, sitting, needs_review)
-    reply = cut_footer("\n".join(replies).strip())
+    reply = cut_reply_header(cut_footer("\n".join(replies).strip()))
     parts = split_parts("\n".join(questions).strip(), reply)
     if not reply:
         needs_review.append("empty reply text")

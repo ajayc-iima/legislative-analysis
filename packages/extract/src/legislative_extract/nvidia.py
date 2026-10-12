@@ -19,6 +19,7 @@ LEGACY_KEY_PATHS = [
     r"D:\ISB\Legislative Preparedness\.venv\mgla_config.json",
     r"D:\ISB\Legislative Preparedness\mgla_config.json",
 ]
+ENV_FILE_PATH = Path(__file__).resolve().parents[4] / ".env"
 
 CV_BASE = "https://ai.api.nvidia.com/v1/cv"
 CHAT_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -34,6 +35,16 @@ def load_key(explicit=""):
     key = os.environ.get("NVIDIA_API_KEY", "") or os.environ.get("NIM_API_KEY", "")
     if key:
         return key
+    env_file = ENV_FILE_PATH
+    if env_file.exists():
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith(("NVIDIA_API_KEY=", "NIM_API_KEY=")):
+                    value = line.split("=", 1)[1].strip().strip("\"'")
+                    if value:
+                        return value
+        except OSError:
+            pass
     for path in LEGACY_KEY_PATHS:
         try:
             if os.path.isfile(path):
@@ -87,6 +98,40 @@ def chat_vl(key, model, png_bytes, prompt, tools=None, max_tokens=2048, timeout=
     if tools:
         payload["tools"] = tools
     return _post(CHAT_URL, key, payload, timeout=timeout)
+
+
+def extract_reply_page(key, png_bytes, timeout=TIMEOUT):
+    """Ask NVIDIA's vision model to transcribe only the ministerial reply.
+
+    Exhibit text is intentionally extracted separately from the corpus OCR:
+    the model sees the page layout and is told not to include the question,
+    headers, footers, or column labels.
+    """
+    prompt = (
+        "Transcribe only the substantive ministerial/government reply on this "
+        "legislative assembly page. Exclude the question, question number, "
+        "department or minister header, page header, footer, annexure labels, "
+        "and any surrounding metadata. Preserve paragraph breaks, numbering, "
+        "names, dates, quantities, and the wording visible in the reply. "
+        "If this page has no ministerial reply, return exactly NO_REPLY. "
+        "Return plain text only; do not add commentary or quotation marks."
+    )
+    ok, payload, error, ms = chat_vl(
+        key, "meta/llama-3.2-11b-vision-instruct", png_bytes,
+        prompt, max_tokens=4096, timeout=timeout)
+    if not ok:
+        return False, "", error, ms
+    try:
+        choices = payload.get("choices") or []
+        content = (choices[0].get("message") or {}).get("content") or ""
+        text = str(content).strip()
+        if text.startswith("```") and text.endswith("```"):
+            text = text[3:-3].strip()
+            if text.lower().startswith("text"):
+                text = text[4:].lstrip("\r\n ")
+        return True, text, "", ms
+    except (IndexError, AttributeError, TypeError) as exc:
+        return False, "", f"unexpected vision response: {exc}", ms
 
 
 def parse_document(key, png_bytes, tool="markdown_no_bbox", timeout=TIMEOUT):

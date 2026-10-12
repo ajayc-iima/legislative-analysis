@@ -234,6 +234,9 @@ def main():
     # preferred, and every figure that uses it says which one it used.
     recurrence = load_recurrence()
     layers["recurrence"] = recurrence
+    semantic_path = REPO / "output/layers/layer5_semantic.json"
+    semantic = (json.loads(semantic_path.read_text(encoding="utf-8"))
+                if semantic_path.exists() else None)
     rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     total = len(rows)
     order = longi.session_order_of(rows)
@@ -351,12 +354,17 @@ def main():
          "Bar substitute for a choropleth (no boundary shapefile in repo); identical counts. Source: layer2_geography.json.")
 
     # ── 5. Recurring subjects × session dot plot ──
-    fams = layers["layer5_resolution"]["families"]
+    fams = (semantic["families"] if semantic else
+            layers["layer5_resolution"]["families"])
     top = sorted(fams.values(), key=lambda f: (-f["occurrences"], f["subject"]))[:15]
-    order_str = [f"{a.split()[0]} {s}" for a, s in order]
+    # Semantic families store the session value without the assembly prefix
+    # (for example, "Budget Session, 2021"). Use that canonical value for
+    # lookup; the axis still carries assembly-aware display labels.
+    order_sessions = [s for _a, s in order]
     fig, ax = plt.subplots(figsize=(13, 7))
     for i, f in enumerate(top):
-        xs = [order_str.index(s) for s in f["sessions"] if s in order_str]
+        xs = [order_sessions.index(s) for s in f["sessions"]
+              if s in order_sessions]
         ax.scatter(xs, [i] * len(xs), s=70, color=NAVY, zorder=3)
     ax.set_yticks(range(len(top)))
     ax.set_yticklabels([f"{shorten(f['subject'], width=48, placeholder='…')}  ·  "
@@ -369,7 +377,11 @@ def main():
                  f"{len(top[0]['sessions'])} of {len(order)} sittings",
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "05-recurring-dots", "Sustained attention", "Pillar 1",
-         "Each dot = the subject was asked in that session (exact normalized match). Source: layer5_resolution.json.")
+         ("Each dot = the subject family was asked in that session. "
+          + ("Families are grouped with NVIDIA embeddings and verification gates. "
+             "Source: layer5_semantic.json."
+             if semantic else
+             "Families use exact normalized matching. Source: layer5_resolution.json.")))
 
     # ── 6. Demand-type stacked bar by department ──
     crosstab = layers["layer3_demands"]["demand_by_department"]
@@ -544,7 +556,8 @@ def main():
          "Whether a signed reply PDF exists per session; every bar labelled. Source: stats.json.")
 
     # ── 12. Resolution trajectories (bar until Sankey is meaningful) ──
-    res = layers["layer5_resolution"]["resolution_counts"]
+    res = (semantic["resolution_counts"] if semantic
+           else layers["layer5_resolution"]["resolution_counts"])
     fig, ax = plt.subplots(figsize=(9, 5))
     keys = sorted(res, key=lambda k: -res[k])
     ax.bar(keys, [res[k] for k in keys],
@@ -558,14 +571,19 @@ def main():
     ax.set_title(f"{res.get('stalled', 0)} of {sum(res.values())} recurring subjects "
                  f"show no progress language", fontsize=13, color=NAVY, pad=12)
     save(fig, "12-resolution", "Resolution tracking", "Pillar 3",
-         "Bar until replies resolve trajectories; a Sankey follows once resolved/progressing/stalled split. Source: layer5_resolution.json.")
+         ("Bar until replies resolve trajectories; a Sankey follows once the "
+          "resolved/progressing/stalled split is sufficiently evidenced. Source: "
+          + ("layer5_semantic.json (embedding families)." if semantic
+             else "layer5_resolution.json.")))
 
     # ── 13. Emerging issues timeline ──
-    emerging = layers["layer6_trends"]["emerging_issues"]
+    emerging = (semantic["emerging_issues"] if semantic
+                else layers["layer6_trends"]["emerging_issues"])
     fig, ax = plt.subplots(figsize=(12, 4.5))
     if emerging:
         ys = range(len(emerging))
-        xs = [order_str.index(e["first_session"]) if e["first_session"] in order_str else len(order_str) - 1
+        xs = [order_sessions.index(e["first_session"])
+              if e["first_session"] in order_sessions else len(order_sessions) - 1
               for e in emerging]
         sizes = [120 + 80 * e["occurrences"] for e in emerging]
         ax.scatter(xs, list(ys), s=sizes, color=TEAL, alpha=0.7, edgecolors="white")
@@ -576,13 +594,28 @@ def main():
         ax.set_xticks(range(len(order)))
         ax.set_xticklabels(slabels, rotation=45, ha="right", fontsize=8)
         ax.set_xlim(-0.5, len(order) - 0.5)
+        watch_start = max(0, len(order) - 3) - 0.5
+        ax.axvspan(-0.5, watch_start, color=GRAY15, alpha=0.35, zorder=0)
+        ax.text((watch_start - 0.5) / 2, 0.5,
+                "No qualifying\nwatchlist issues",
+                transform=ax.get_xaxis_transform(), ha="center", va="center",
+                fontsize=8, color=GRAY70,
+                bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"})
+        ax.text(watch_start + 0.15, 1.02, "Watchlist window",
+                transform=ax.get_xaxis_transform(), ha="left", va="bottom",
+                fontsize=8, color=TEAL, fontweight="bold")
     style(ax, xlabel="First-appearance session")
     n_em = len(emerging)
     firsts = {e["first_session"] for e in emerging}
     ax.set_title(f"{n_em} issues first surfaced in the {len(firsts)} most recent sessions",
                  fontsize=13, color=NAVY, pad=12)
     save(fig, "13-emerging", "Emerging issues", "Pillar 3",
-         "First seen in the last 3 sessions, ≥2 occurrences, ≥2 askers. Source: layer6_trends.json.")
+         ("First seen in the last 3 sessions, ≥2 occurrences, ≥2 askers. Source: "
+          + ("layer5_semantic.json (embedding families). Earlier sessions are "
+             "shaded because they are outside the watchlist window."
+             if semantic
+             else "layer6_trends.json. Earlier sessions are shaded because "
+                  "they are outside the watchlist window.")))
 
     # ── 14. Starred vs unstarred trend ──
     by_session = defaultdict(Counter)

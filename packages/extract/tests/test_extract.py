@@ -14,6 +14,7 @@ def test_load_key_prefers_explicit_and_env(monkeypatch):
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
     monkeypatch.delenv("NIM_API_KEY", raising=False)
     monkeypatch.setattr(nvidia, "LEGACY_KEY_PATHS", [])
+    monkeypatch.setattr(nvidia, "ENV_FILE_PATH", nvidia.Path("missing.env"))
     assert nvidia.load_key() == ""
 
 
@@ -196,6 +197,21 @@ def test_split_reply_skips_full_width_title_box():
     words = [(18, 5, 96, 25, "STARRED QUESTIONS TO BE ASKED BY X"),
              (60, 40, 95, 60, "Reply text here")]
     assert split_reply(words, 110, 100) == "Reply text here"
+
+
+def test_split_reply_keeps_qr_lines_starting_at_gutter():
+    # Native text layers in tall Q/R tables can place the first answer word
+    # a few pixels left of the gutter.  The complete right-column answer must
+    # survive instead of being reduced to the REPLIES header.
+    words = [
+        (255, 100, 285, 113, "Presently"),
+        (290, 100, 330, 113, "Police"),
+        (335, 100, 345, 113, "is"),
+        (350, 100, 420, 113, "investigating"),
+        (425, 100, 445, 113, "the"),
+        (450, 100, 490, 113, "case."),
+    ]
+    assert split_reply(words, 595, 842) == "Presently Police is investigating the case."
 
 
 def test_split_reply_stops_at_footer():

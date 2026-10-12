@@ -52,6 +52,7 @@ from legislative_analysis.analysis import load as load_rows       # noqa: E402
 from legislative_analysis.codebook import classify_all, normalize_dept, DEPT_THEME  # noqa: E402
 from legislative_analysis.demand import classify_all as classify_demand_all  # noqa: E402
 from legislative_analysis.geography import tag_all, party_of, bloc_of, lookup_mla  # noqa: E402
+from legislative_analysis import longitudinal as longi  # noqa: E402
 from legislative_analysis import reference_data as ref_data      # noqa: E402
 from legislative_analysis import recurrence                      # noqa: E402
 from legislative_analysis.naming import member_labels           # noqa: E402
@@ -94,11 +95,7 @@ def load_all():
     overall, dept_summary, records = compute_layer4(rows, extracted)
     labels = member_labels({str(r.get("Asked_By") or "").strip()
                             for r in load_rows(str(csv_path))})
-    session_order = []
-    for r in rows:
-        key = (r.get("Assembly") or "", r.get("Session") or "")
-        if key not in session_order:
-            session_order.append(key)
+    session_order = longi.session_order_of(rows)
     return rows, extracted, overall, dept_summary, records, labels, session_order
 
 
@@ -111,6 +108,13 @@ def flagged_by_department() -> dict[str, list[dict]]:
         for row in csv.DictReader(fh):
             out[normalize_dept(row.get("department"))].append(row)
     return out
+
+
+def load_nvidia_exhibit_replies() -> dict:
+    path = REPO / "data/cache/nvidia_exhibit_replies.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 # ───────────────────────────── per-department profile ────────────────────────
@@ -126,6 +130,8 @@ def profile(dept: str, rows, extracted, dept_summary, records, labels, order,
         key = (r.get("Assembly") or "", r.get("Session") or "")
         if key not in sessions:
             sessions.append(key)
+    session_rank = {key: i for i, key in enumerate(order)}
+    sessions.sort(key=lambda key: session_rank.get(key, len(order)))
     askers = Counter(labels.get(str(r.get("Asked_By") or "").strip(),
                                  str(r.get("Asked_By") or "").strip()) for r in mine)
     themes = Counter(r.get("_theme") or "General / Other" for r in mine)
@@ -531,12 +537,9 @@ def fig_compare(profiles: list[dict], overall: dict, corpus_median) -> None:
         for i, v in enumerate(values):
             ax.text(i, v + top * 0.03, f"{v:.1f}" if v >= 1 else f"{v:.2f}",
                     ha="center", fontsize=8, color=GRAY70)
-        if panel == 0:
-            ax.set_xticks(range(len(values)))
-            ax.set_xticklabels(names, rotation=20, ha="right", fontsize=8)
-        else:
-            ax.set_xticks(range(len(values)))
-            ax.set_xticklabels([])
+        ax.set_xticks(range(len(values)))
+        ax.set_xticklabels(names, rotation=20, ha="right", fontsize=8)
+        ax.tick_params(axis="x", pad=3)
         ax.set_ylim(0, top * 1.25)
         style(ax, ylabel=unit)
         ax.set_title(title, fontsize=10, color=NAVY)
@@ -549,6 +552,50 @@ def fig_compare(profiles: list[dict], overall: dict, corpus_median) -> None:
              "department values come from the per-department rubric, the grey bar "
              "is every other department. Measures are levels, not scores: they are "
              "not combined and no ranking is implied. Source: build_compendium.")
+
+
+def fig_embedding(semantic: dict | None, exact_families: dict) -> None:
+    """Show what the embedding pass adds over deterministic exact matching."""
+    if not semantic:
+        return
+    exact = Counter()
+    for family in exact_families.values():
+        for dept in family.get("departments") or ["—"]:
+            exact[normalize_dept(dept)] += 1
+    embedded = Counter()
+    for family in (semantic.get("families") or {}).values():
+        for dept in family.get("departments") or ["—"]:
+            embedded[normalize_dept(dept)] += 1
+    names = [name for name, _ in embedded.most_common(12)]
+    names = sorted(names, key=lambda name: (-embedded[name], name))
+    y = np.arange(len(names))
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    ax.barh(y + 0.18, [exact[name] for name in names], height=0.34,
+            color=GRAY40, label="Exact normalized match")
+    ax.barh(y - 0.18, [embedded[name] for name in names], height=0.34,
+            color=TEAL, label="Embeddings + verification gates")
+    ax.set_yticks(y)
+    ax.set_yticklabels([shorten(name, width=30, placeholder="…")
+                        for name in names], fontsize=8)
+    ax.invert_yaxis()
+    for i, name in enumerate(names):
+        ax.text(exact[name] + 0.15, i + 0.18, str(exact[name]),
+                va="center", fontsize=8, color=GRAY70)
+        ax.text(embedded[name] + 0.15, i - 0.18, str(embedded[name]),
+                va="center", fontsize=8, color=GRAY70)
+    style(ax, xlabel="Recurring subject families")
+    ax.legend(frameon=False, fontsize=9, loc="lower right")
+    ax.set_title("Embeddings recover paraphrased recurring subjects without "
+                 "replacing the deterministic baseline", fontsize=12,
+                 color=NAVY, pad=12)
+    save_fig(fig, "ws-embedding-audit",
+             f"Embedding audit: {semantic.get('n_families', 0)} semantic families "
+             f"versus {len(exact_families)} exact-match families.",
+             f"Top {len(names)} departments by semantic-family count. The semantic "
+             f"pass uses {semantic.get('embed_model', 'the recorded embedding model')} "
+             f"({semantic.get('embed_dims', '—')} dimensions) plus verification gates; "
+             "it is reported beside, not substituted for, exact matching. Sources: "
+             "layer5_resolution.json and layer5_semantic.json.")
 
 
 rest_values: dict[str, float] = {}
@@ -731,11 +778,22 @@ def pick_exhibits(d: dict) -> list[dict]:
             seen.add(key)
             picks.append({**x, "why": want})
             break
+    target = next(
+        (x for x in d["reply_rows"]
+         if "death of the student in jnv mawphlang"
+         in " ".join(str(x["row"].get(key) or "")
+                     for key in ("Question_Number", "Subject", "Questions")).lower()
+         and x["reply"]),
+        None,
+    )
+    if target and not any(x["pdf"] == target["pdf"] for x in picks):
+        picks.append({**target, "why": "target extraction audit"})
     return picks
 
 
 def exhibits_html(d: dict) -> str:
     out = []
+    nvidia_replies = load_nvidia_exhibit_replies()
     for x in pick_exhibits(d):
         coding = x["coding"] or {}
         stage = (coding.get("execution_stage") or {}).get("stage", "—")
@@ -751,6 +809,11 @@ def exhibits_html(d: dict) -> str:
         if coding.get("boilerplate"):
             flags.append("boilerplate-flagged")
         row = x["row"]
+        pdf = x["pdf"]
+        api_reply = (nvidia_replies.get(pdf) or {}).get("reply") or ""
+        reply = api_reply or x["reply"] or ""
+        source = ("NVIDIA vision re-extraction" if api_reply
+                  else "corpus OCR fallback — NVIDIA cache missing")
         note = (f"Rubric reading: {band} reply; highest stage evidenced: {stage}; "
                 f"{', '.join(flags) if flags else 'no actionable element detected'}. "
                 f"Selected as the department's {x['why']} among {d['n_coded']:,} "
@@ -763,8 +826,9 @@ def exhibits_html(d: dict) -> str:
             asked_by=d["_label_map"].get(str(row.get("Asked_By") or "").strip(),
                                          str(row.get("Asked_By") or "")),
             question_text=str(row.get("Questions") or "")[:1200],
-            reply_text=(x["reply"] or "")[:1500],
-            analysis_note=note))
+            reply_text=reply,
+            analysis_note=note,
+            reply_source=source))
     return "".join(out)
 
 
@@ -811,12 +875,10 @@ def limitations(d: dict) -> str:
     items = [
         ("Budget is one year against five years of questions. The rate in this "
          "dossier compares levels, not trends."),
-        ("Question text is the portal's own text; subjects are matched by "
-         "normalised exact match, so a paraphrase is not recognised as the same "
-         "subject. Recurrence is therefore a floor, not a ceiling. The semantic "
-         "grouping in this pack (NVIDIA nemotron-3-embed-1b with 5 verification gates) "
-         "recovers paraphrased subjects that exact matching cannot see; both counts "
-         "are published side by side so the reader can assess the gap."),
+        ("Question text is the portal's own text. Recurrence is grouped primarily "
+         "with NVIDIA nemotron-3-embed-1b embeddings and verification gates, so "
+         "paraphrased questions can be recognised as the same issue. Normalised "
+         "exact matching remains an audit baseline for measuring merge differences."),
         ("Replies are OCR-extracted from scanned PDFs. Records flagged as needing "
          "human review are excluded from coded statistics but remain visible in "
          "the denominators shown here."),
@@ -832,12 +894,13 @@ def limitations(d: dict) -> str:
             + "".join(f"<li>{t}</li>" for t in items) + "</ul>")
 
 
-def chapter(d: dict, idx: int, corpus: dict, corpus_median) -> str:
+def chapter(d: dict, idx: int, corpus: dict, corpus_median,
+            badge: str = "Chapter") -> str:
     """One department's full dossier."""
     slug = _slug(d["dept"])
     short = d["dept"].replace(" Department", "")
     part = [f"<section class='chapter' id='dept-{idx}'>"]
-    part.append(f"<div class='chapter-head'><span class='chapter-num'>Chapter {idx}</span>"
+    part.append(f"<div class='chapter-head'><span class='chapter-num'>{badge} {idx}</span>"
                 f"<h2>{esc(d['dept'])}</h2>"
                 f"<p class='chapter-standfirst'>{d['n']:,} questions "
                 f"({100 * d['n'] / corpus['total']:.1f}% of the corpus) across "
@@ -863,19 +926,18 @@ def chapter(d: dict, idx: int, corpus: dict, corpus_median) -> str:
                 f"members expected the subject to be handled elsewhere.</p>")
     part.append(wfigure(f"ws-{slug}-themes"))
     part.append(subjects_table(
-        d, "Most frequent subjects (exact match, wording as the archive records it)",
+        d, "Most frequent subject strings (archive wording; recurrence uses embeddings)",
         d["subject_rows"], "questions"))
 
     # --- Recurring subjects -------------------------------------------------
-    # Three cases, each labelled with the method that produced the count:
-    # semantic families exist; semantic layer ran but found none here
-    # (exact list shown, labelled); no semantic layer at all.
+    # Recurrence is reported from embedding families; exact matching is shown
+    # only as the reproducible audit baseline.
     if d.get("recurring_sem"):
         part.append(subjects_table(
             d, f"Recurring subjects — asked in two or more sittings "
-               f"({len(d['recurring_sem'])} families, semantic grouping)",
+               f"({len(d['recurring_sem'])} families, NVIDIA embeddings)",
             d["recurring_sem"][:15], "sessions"))
-        part.append(f"<p>For comparison: exact string matching alone finds "
+        part.append(f"<p>Audit baseline: exact string matching alone finds "
                     f"{len(d['recurring_exact'])} of these. The gap is the "
                     f"paraphrase effect — the same issue reworded across "
                     f"sittings, which embeddings group and the gates verify. "
@@ -896,9 +958,9 @@ def chapter(d: dict, idx: int, corpus: dict, corpus_median) -> str:
     if d.get("emerging_sem"):
         part.append(subjects_table(
             d, f"Emerging subjects — first seen in the last three sittings "
-               f"({len(d['emerging_sem'])}, semantic grouping)",
+               f"({len(d['emerging_sem'])}, NVIDIA embeddings)",
             d["emerging_sem"][:15], "questions"))
-        part.append(f"<p>For comparison: exact string matching alone finds "
+        part.append(f"<p>Audit baseline: exact string matching alone finds "
                     f"{len(d['emerging_exact'])} — a new-looking subject string "
                     f"is often a rewording of an issue the record already "
                     f"contains, which is why the two methods disagree.</p>")
@@ -1097,6 +1159,10 @@ def main(argv=None) -> int:
         fig_stages(d)
         fig_askers(d)
     fig_compare(profiles, overall, corpus_median)
+    exact_families = json.loads(
+        (REPO / "output/layers/layer5_resolution.json").read_text(encoding="utf-8")
+    ).get("families", {})
+    fig_embedding(sem, exact_families)
 
     L = []
     add = L.append
@@ -1161,6 +1227,25 @@ def main(argv=None) -> int:
         "This pack keeps the facts and shows the arithmetic.</p></div>")
 
     add(method_section(corpus))
+
+    if sem:
+        add("<section class='chapter' id='sec-embedding'>")
+        add("<div class='chapter-head'><span class='chapter-num'>Part I-A</span>"
+            "<h2>Embedding audit: finding the same issue in new words</h2>"
+            "<p class='chapter-standfirst'>The semantic pass is an auditable "
+            "supplement to exact matching, not a replacement for it.</p></div>")
+        add(wfigure("ws-embedding-audit"))
+        add(f"<p>The embedding pass represented "
+            f"<b>{sem.get('n_subjects_embedded', 0):,} subject strings</b> with "
+            f"<b>{esc(sem.get('embed_model', 'the recorded model'))}</b> "
+            f"({esc(sem.get('embed_dims', '—'))} dimensions), then applied "
+            f"department, locality, named-scheme, specificity and verification "
+            f"gates. It produced <b>{sem.get('n_families', 0):,}</b> semantic "
+            f"families and sent <b>{sem.get('n_unresolved', 0):,}</b> borderline "
+            "pairs for human adjudication. Exact-match counts remain alongside "
+            "these results so a reader can distinguish a measured wording "
+            "difference from a model-assisted merge.</p>")
+        add("</section>")
 
     for i, d in enumerate(profiles, 1):
         add(chapter(d, i, corpus, corpus_median))
@@ -1236,4 +1321,3 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

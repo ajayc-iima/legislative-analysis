@@ -28,6 +28,7 @@ from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows  # noqa: E402
 from legislative_analysis.codebook import normalize_dept  # noqa: E402
 from legislative_analysis import reference_data as ref_data  # noqa: E402
+from legislative_analysis.response import code_reply  # noqa: E402
 from build_compendium import compute_layer4, load_extracted, pct  # noqa: E402
 
 CHARTS = REPO / "output/charts"
@@ -164,8 +165,18 @@ def details(summary, body, open_default=False):
     return f"<details class='data-details'{op}><summary>{esc(summary)}</summary><div class='details-content'>{body}</div></details>"
 
 
-def exhibit_card(qno, date, dept, asked_by, question_text, reply_text, analysis_note):
+def exhibit_card(qno, date, dept, asked_by, question_text, reply_text,
+                 analysis_note, reply_source="Verbatim OCR"):
     """Parchment-style qualitative documentary evidence card."""
+    reply = str(reply_text or "")
+    if len(reply) > 900:
+        reply_html = (
+            f"<div class='reply-preview'>{esc(reply[:700].rstrip())}…</div>"
+            f"<details class='reply-more'><summary>See more</summary>"
+            f"<div class='reply-full'>{esc(reply)}</div></details>"
+        )
+    else:
+        reply_html = esc(reply)
     return (
         f"<div class='exhibit-card'>"
         f"<div class='exhibit-header'>"
@@ -178,13 +189,37 @@ def exhibit_card(qno, date, dept, asked_by, question_text, reply_text, analysis_
         f"<div class='quote-text'>{esc(question_text)}</div>"
         f"</div>"
         f"<div class='exhibit-col reply-col'>"
-        f"<div class='col-title'>Executive Ministerial Reply (Verbatim OCR)</div>"
-        f"<div class='quote-text reply'>{esc(reply_text)}</div>"
+        f"<div class='col-title'>Executive Ministerial Reply ({esc(reply_source)})</div>"
+        f"<div class='quote-text reply'>{reply_html}</div>"
         f"</div>"
         f"</div>"
         f"<div class='exhibit-analysis'><b>Scholarly Evaluation:</b> {esc(analysis_note)}</div>"
         f"</div>"
     )
+
+
+def load_nvidia_exhibit_replies():
+    path = REPO / "data/cache/nvidia_exhibit_replies.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def documentary_exhibits(rows, extracted, nvidia_replies, limit=3):
+    """Return real contradiction records suitable for report exhibits."""
+    candidates = []
+    for row in rows:
+        pdf = str(row.get("Document_Link") or "").rsplit("/", 1)[-1]
+        rec = extracted.get(pdf) or {}
+        reply = (nvidia_replies.get(pdf) or {}).get("reply") or rec.get("reply") or ""
+        if not reply:
+            continue
+        coding = code_reply(reply)
+        if not coding["contradiction"]["has_contradiction"]:
+            continue
+        candidates.append((len(reply), row, pdf, reply, coding))
+    candidates.sort(key=lambda item: -item[0])
+    return candidates[:limit]
 
 
 def build_css():
@@ -649,6 +684,32 @@ figcaption.figure-caption {
   border-left-color: var(--teal);
   background: #F0FDF4;
 }
+.reply-preview { white-space: pre-wrap; }
+.reply-more {
+  margin-top: 0.55rem;
+  font-family: var(--sans);
+  font-style: normal;
+}
+.reply-more summary {
+  display: inline-block;
+  cursor: pointer;
+  color: var(--teal);
+  font-size: 0.78rem;
+  font-weight: 700;
+  list-style: none;
+  border: 1px solid #8CC8C1;
+  border-radius: 4px;
+  padding: 0.18rem 0.55rem;
+  background: #ECFDF5;
+}
+.reply-more summary::-webkit-details-marker { display: none; }
+.reply-more summary::after { content: "  +"; }
+.reply-more[open] summary::after { content: "  −"; }
+.reply-full {
+  white-space: pre-wrap;
+  margin-top: 0.55rem;
+  font-style: italic;
+}
 .exhibit-analysis {
   font-family: var(--sans);
   font-size: 0.83rem;
@@ -935,6 +996,7 @@ def main():
     rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     total = len(rows)
     extracted = load_extracted()
+    nvidia_exhibits = load_nvidia_exhibit_replies()
     overall, dept_summary, records = compute_layer4(rows, extracted)
 
     themes = layers["layer1_themes"]
@@ -984,12 +1046,8 @@ def main():
     n_stalled = res_counts.get("stalled", 0)
     n_resolved = res_counts.get("resolved", 0)
 
-    # Semantic supplement (optional). Layer 5 above is the deterministic
-    # exact-match result and every headline number uses it, because it
-    # rebuilds without a network connection or an API key. The semantic
-    # grouping is reported beside it, never instead of it: it recovers
-    # paraphrases string equality cannot see, and a reader can check every
-    # merge against the provenance kept with it.
+    # Semantic recurrence is primary when the embedding artefact is present.
+    # Exact matching remains the reproducible audit baseline.
     semantic_path = LAYERS / "layer5_semantic.json"
     semantic = (json.loads(semantic_path.read_text(encoding="utf-8"))
                 if semantic_path.exists() else None)
@@ -1006,15 +1064,21 @@ def main():
     else:
         sem_counts, sem_fam, sem_stalled, sem_stalled_pct = {}, 0, 0, 0.0
         sem_dept_families = Counter()
-    stalled_pct = pct(n_stalled, n_fam)
+    if semantic:
+        res_counts = sem_counts
+        n_fam = sem_fam
+        n_stalled = sem_stalled
+        n_resolved = res_counts.get("resolved", 0)
+    stalled_pct = pct(n_stalled, sum(res_counts.values()))
     exact_dept_families = Counter(
         (f.get("departments") or ["—"])[0] for f in resolution["families"].values())
     det_pct = det_share
     n_contradiction = sum(1 for x in records if x["contradiction"]["has_contradiction"])
     n_sessions = len(stats.get("sessions", []))
     sessions = stats.get("sessions", [])
-    emerging = trends.get("emerging_issues", [])
-    families = resolution["families"]
+    emerging = (semantic.get("emerging_issues", [])
+                if semantic else trends.get("emerging_issues", []))
+    families = semantic["families"] if semantic else resolution["families"]
     fam_top = sorted(families.values(), key=lambda f: (-f["occurrences"], f["subject"]))
     years = sorted({s["first_date"][-4:] for s in sess_list if len(s["first_date"]) >= 4})
     window = f"{years[0]}–{years[-1]}" if years else "2021–2026"
@@ -1461,27 +1525,32 @@ def main():
         f"self-contradictions</b> within a single paragraph. "
         "These occur when an executive response asserts completion or approval while simultaneously admitting non-execution in the qualifying clause:</p>")
 
-    # Documentary Exhibits of Contradictions
-    add(exhibit_card(
-        qno="Q.No 64", date="Autumn Session 2026", dept="Tourism Department", asked_by="Dr. Mukul Sangma",
-        question_text="(a) The total fund allocated for development of Tourism Infrastructure Projects across the State? (b) The details of projects completed till date?",
-        reply_text="Sir, the total amount allocated is Rs. 162 Crore. However, the amount of Rs. 162 crore allocated has not been utilized till date and no physical work has been completed.",
-        analysis_note="Direct financial contradiction: Executive announces massive allocation while conceding zero utilization and zero physical delivery."
-    ))
-
-    add(exhibit_card(
-        qno="Q.No 112", date="Autumn Session 2026", dept="Public Works (Roads)", asked_by="Brightstarwell Marbaniang",
-        question_text="Whether mandatory third-party quality audits have been completed for all CRIF and NESIDS road packages sanctioned over the last five years?",
-        reply_text="Sir, comprehensive quality audits are conducted as per CPWD manual. However, the list of roads under NESIDS and CRIF where quality audits have not been completed during the last five years are appended at ANNEXURE-L.",
-        analysis_note="Documentary contradiction: General assertion of audit compliance is immediately refuted by appending a multi-page annexure of unaudited road projects."
-    ))
-
-    add(exhibit_card(
-        qno="Q.No 48", date="Autumn Session 2026", dept="Social Welfare Department", asked_by="Mizanur Rahman Kazi",
-        question_text="The timeline and policy formulated for regularization and absorption of contractual Anganwadi and ICDS supervisors?",
-        reply_text="Sir, the services of dedicated contractual supervisors are highly valued and under active review. However, there is no existing policy, timeline, or proposal under consideration for regularisation/absorption of contractual supervisors.",
-        analysis_note="Policy evasion: Verbal assurance of 'active review' coupled with explicit denial that any proposal or timeline actually exists."
-    ))
+    # Documentary Exhibits of Contradictions. These are selected from actual
+    # corpus rows; the displayed reply is the targeted NVIDIA re-extraction
+    # when the cache is available, never a hand-written quotation.
+    exhibits = documentary_exhibits(rows, extracted, nvidia_exhibits)
+    if exhibits:
+        for _length, row, pdf, reply, coding in exhibits:
+            qno = re.sub(r"^\s*Q\.?\s*No\.?\s*", "",
+                         str(row.get("Question_Number") or "")).strip() or "—"
+            note = ("Contradiction flagged by the reply-quality rubric; "
+                    "the reply is re-extracted from the signed PDF with "
+                    "NVIDIA vision and retained with PDF provenance.")
+            source = ("NVIDIA vision re-extraction"
+                      if (nvidia_exhibits.get(pdf) or {}).get("reply")
+                      else "corpus OCR fallback — NVIDIA cache missing")
+            add(exhibit_card(
+                qno=f"Q.No {qno}", date=f"{row.get('Session') or ''} "
+                f"{row.get('Session_Date') or ''}".strip(),
+                dept=normalize_dept(row.get("Departments")),
+                asked_by=row.get("Asked_By") or "—",
+                question_text=row.get("Questions") or "",
+                reply_text=reply,
+                analysis_note=note,
+                reply_source=source))
+    else:
+        add("<p><b>Documentary exhibits unavailable:</b> no contradiction "
+            "record has a readable reply in the current corpus.</p>")
 
     add("<h3 class='subsection-heading'>4.6 The Capital Project Execution Bottleneck</h3>")
     add("<p>By tracking replies through an 8-stage project delivery lifecycle (Concept → Administrative Processing → Sanction → Approval → Procurement → Execution → Implementation → Completion), "
@@ -1537,10 +1606,10 @@ def main():
     add(f"<p>What happens when an issue is asked repeatedly across multiple legislative sessions? Does repeated legislative interrogation force bureaucratic "
         f"learning and institutional resolution, or does the executive develop immunity to scrutiny? "
         f"To test Hypothesis H5, Layer 5 tracked <b>{n_fam} recurring subject families</b> raised across two or more sessions "
-        f"(Figure 12 and Figure 13). These are counted by exact match on the normalised subject string — the "
-        f"deterministic default, which rebuilds without a network connection or an API key. "
-        f"A semantic grouping that recovers paraphrases is reported alongside it in §5.1; the two are compared "
-        f"rather than one being quietly substituted for the other.</p>")
+        f"(Figure 12 and Figure 13). These are counted primarily with NVIDIA "
+        f"embedding families and verification gates, which group paraphrases "
+        f"while preventing cross-department and locality errors. Exact matching "
+        f"is retained as an audit baseline in §5.1.</p>")
     add(figs("12-resolution", "13-emerging"))
 
     res_summary_rows = [
@@ -1551,12 +1620,16 @@ def main():
         ["Regressed (Backward Movement)", f"{res_counts.get('regressed', 0)}", f"{pct(res_counts.get('regressed', 0), sum(res_counts.values()))}%", "Prior commitments revoked, contracts cancelled, or timelines abandoned."]
     ]
     add(table(["Trajectory Classification", "Subject Families", "Share (%)", "Empirical Definition"], res_summary_rows,
-              caption="Table 5.1: Longitudinal Trajectories of Recurring Subject Families (≥2 Sessions), counted by exact match. Source: layer5_resolution.json."))
+              caption=("Table 5.1: Longitudinal trajectories of recurring subject "
+                       "families (≥2 sessions), counted by embedding families "
+                       "with verification gates. Source: layer5_semantic.json."))
+              )
 
-    add(f"<p>On the deterministic count, <b>{pct(n_stalled, sum(res_counts.values()))}% of recurring issues "
+    add(f"<p>On the embedding-family count, <b>{pct(n_stalled, sum(res_counts.values()))}% of recurring issues "
         f"({n_stalled} of {n_fam}) are stalled</b>. Far from compelling institutional learning, repeated questioning in the Meghalaya Legislative Assembly "
         f"reveals an <b>Accountability Trap</b>: departments become adept at returning recycled, formulaic replies session after session with no progress in "
-        f"real-world delivery. The semantic count below points the same way, so the finding does not depend on which matching method is used.</p>")
+        f"real-world delivery. Exact-match counts remain available as a sensitivity "
+        f"check, not as the primary recurrence estimate.</p>")
 
     add("<h3 class='subsection-heading'>5.1 Two Ways of Matching a Repeated Subject — and Why Both Are Reported</h3>")
     add("<p>Identifying a subject that returns in a later sitting requires matching this sitting's wording to the last one. Legislators rephrase: "
