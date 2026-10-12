@@ -1,0 +1,13 @@
+pdf,reason,decided,decided_by
+10_14_S_1967_V1_signed.pdf,mixed Q&A page: bulletin header and interleaved sub-questions inseparable from reply by line rules; reverted to flagged-empty,2026-10-12,extraction-review
+11_3_S_2333_V1_signed.pdf,mixed Q&A page: bulletin header and interleaved sub-questions inseparable from reply by line rules; reverted to flagged-empty,2026-10-12,extraction-review
+11_4_S_2612_V1_signed.pdf,pure bulletin header stored as reply by fallback; no reply content separable; reverted to flagged-empty,2026-10-12,extraction-review
+11_6_S_3191_V2_signed.pdf,mixed Q&A page: bulletin header interleaved with reply; inseparable by line rules; reverted to flagged-empty,2026-10-12,extraction-review
+11_8_S_3870_V1_signed.pdf,mixed Q&A page: bulletin header interleaved with reply; inseparable by line rules; reverted to flagged-empty,2026-10-12,extraction-review
+11_9_S_3978_V1_signed.pdf,OCR column-smear mixes bulletin fragments with reply; inseparable by line rules; quarantined,2026-10-12,extraction-review
+11_9_S_3977_V1_signed.pdf,OCR column-smear mixes bulletin fragments with reply; inseparable by line rules; quarantined,2026-10-12,extraction-review
+11_9_S_4115_V1_signed.pdf,OCR column-smear: take is fragment noise with no separable reply; quarantined,2026-10-12,extraction-review
+11_8_S_3930_V1_signed.pdf,OCR column-smear mixes bulletin fragments with reply; inseparable by line rules; quarantined,2026-10-12,extraction-review
+11_6_S_3318_V1_signed.pdf,OCR column-smear mixes assignment header with reply; inseparable by line rules; quarantined,2026-10-12,extraction-review
+11_5_US_3043_V2_signed.pdf,bulletin header plus OCR-garbled mixed text; reply content present but inseparable; quarantined,2026-10-12,extraction-review
+11_4_S_2725_V1_signed.pdf,OCR column-smear mixes bulletin header with table reply; inseparable by line rules; quarantined,2026-10-12,extraction-review
