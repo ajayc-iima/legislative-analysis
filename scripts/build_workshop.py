@@ -1069,13 +1069,8 @@ def method_section(corpus: dict) -> str:
             "</ul></section>")
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--top", type=int, default=3,
-                    help="how many departments get a full dossier")
-    args = ap.parse_args(argv)
-
-    OUT.mkdir(parents=True, exist_ok=True)
+def prepare(top: int = 3) -> dict:
+    """Load the corpus once and build everything the pack and dossiers need."""
     rows, extracted, overall, dept_summary, records, labels, order = load_all()
     flagged = flagged_by_department()
 
@@ -1101,7 +1096,7 @@ def main(argv=None) -> int:
         print("  semantic layer not found - exact match only")
 
     totals = Counter(normalize_dept(r.get("Departments")) for r in rows)
-    top_depts = [d for d, _c in totals.most_common(args.top)]
+    top_depts = [d for d, _c in totals.most_common(top)]
     sess_labels = {f"{a} {s}": s for a, s in order}
 
     profiles = []
@@ -1149,16 +1144,51 @@ def main(argv=None) -> int:
             rest_coded),
         "Median reply latency (days)": statistics.median(rest_lat) if rest_lat else 0,
     }
+    return {"profiles": profiles, "corpus": corpus, "corpus_median": corpus_median,
+            "sess_labels": sess_labels, "sem": sem, "overall": overall}
 
-    for d in profiles:
-        fig_volume(d, sess_labels)
+
+def render_department_figures(prep: dict) -> None:
+    """Draw every ws-<department>-*.svg the deep-dive chapters reference."""
+    for d in prep["profiles"]:
+        fig_volume(d, prep["sess_labels"])
         fig_themes(d)
         fig_demands(d)
         fig_bands(d)
-        fig_latency(d, corpus_median)
+        fig_latency(d, prep["corpus_median"])
         fig_stages(d)
         fig_askers(d)
-    fig_compare(profiles, overall, corpus_median)
+
+
+def dossier_sections(top: int = 3, badge: str = "Chapter") -> str:
+    """Departmental deep-dive chapters as one HTML string, figures included.
+
+    The report builder calls this so the publication carries the same dossiers
+    as the workshop pack without duplicating the rendering code."""
+    prep = prepare(top)
+    render_department_figures(prep)
+    exact_families = json.loads(
+        (REPO / "output/layers/layer5_resolution.json").read_text(encoding="utf-8")
+    ).get("families", {})
+    fig_embedding(prep["sem"], exact_families)
+    return "\n".join(
+        chapter(d, i, prep["corpus"], prep["corpus_median"], badge=badge)
+        for i, d in enumerate(prep["profiles"], 1))
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--top", type=int, default=3,
+                    help="how many departments get a full dossier")
+    args = ap.parse_args(argv)
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    prep = prepare(args.top)
+    profiles = prep["profiles"]
+    corpus, corpus_median, sem = prep["corpus"], prep["corpus_median"], prep["sem"]
+
+    render_department_figures(prep)
+    fig_compare(profiles, prep["overall"], corpus_median)
     exact_families = json.loads(
         (REPO / "output/layers/layer5_resolution.json").read_text(encoding="utf-8")
     ).get("families", {})

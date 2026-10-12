@@ -1,0 +1,233 @@
+[
+  {
+    "id": "01-dept-attention",
+    "title": "Department attention",
+    "pillar": "Pillar 1",
+    "caption": "Questions per department with share of the corpus. Source: stats.json.",
+    "message": "Education, Health & Family Welfare, Public Work(Road) draw 28.2% of all questions",
+    "files": [
+      "01-dept-attention.png",
+      "01-dept-attention.svg"
+    ]
+  },
+  {
+    "id": "02-dept-session-heatmap",
+    "title": "Attention matrix",
+    "pillar": "Pillars 1\u20132",
+    "caption": "Question counts for the top-15 departments across all 11 sessions. Source: CSV.",
+    "message": "Chief Minister leads 3 of 11 sessions",
+    "files": [
+      "02-dept-session-heatmap.png",
+      "02-dept-session-heatmap.svg"
+    ]
+  },
+  {
+    "id": "03-themes",
+    "title": "Thematic attention",
+    "pillar": "Pillar 1",
+    "caption": "Rule-based thematic coding (Layer 1); every row records its evidence. Source: layer1_themes.json.",
+    "message": "Governance & Administration and Roads & Infrastructure take 25.3% of all questions",
+    "files": [
+      "03-themes.png",
+      "03-themes.svg"
+    ]
+  },
+  {
+    "id": "04-districts",
+    "title": "Geographic attention",
+    "pillar": "Pillar 1",
+    "caption": "Bar substitute for a choropleth (no boundary shapefile in repo); identical counts. Source: layer2_geography.json.",
+    "message": "East Khasi Hills leads with 1014 questions (45.7% of all questions)",
+    "files": [
+      "04-districts.png",
+      "04-districts.svg"
+    ]
+  },
+  {
+    "id": "05-recurring-dots",
+    "title": "Sustained attention",
+    "pillar": "Pillar 1",
+    "caption": "Each dot = the subject family was asked in that session. Families are grouped with NVIDIA embeddings and verification gates. Source: layer5_semantic.json.",
+    "message": "\u201cJal Jeevan Mission\u201d recurs most \u2014 asked in 11 of 11 sittings",
+    "files": [
+      "05-recurring-dots.png",
+      "05-recurring-dots.svg"
+    ]
+  },
+  {
+    "id": "06-demand-by-dept",
+    "title": "Demand types",
+    "pillar": "Pillar 2",
+    "caption": "What each question demands: data, reasons, action, or follow-up. Segments >= 8% of a column are labelled. Source: layer3_demands.json.",
+    "message": "Information is the demand in 73% of questions; action demands cluster in works departments",
+    "files": [
+      "06-demand-by-dept.png",
+      "06-demand-by-dept.svg"
+    ]
+  },
+  {
+    "id": "07-session-trend",
+    "title": "Volume trend",
+    "pillar": "Pillar 2",
+    "caption": "Session-level question volume with the assembly transition shaded; all 11 points labelled. Source: stats.json.",
+    "message": "Question volume peaked at 353 in 11 Aut '23",
+    "files": [
+      "07-session-trend.png",
+      "07-session-trend.svg"
+    ]
+  },
+  {
+    "id": "08-dept-slopes",
+    "title": "Attention shifts",
+    "pillar": "Pillar 2",
+    "caption": "Mean per-session change in question volume. Source: layer6_trends.json.",
+    "message": "Education gains attention fastest (+3.0/session); Chief Minister loses it (-3.2)",
+    "files": [
+      "08-dept-slopes.png",
+      "08-dept-slopes.svg"
+    ]
+  },
+  {
+    "id": "09-substantiveness",
+    "title": "Response quality",
+    "pillar": "Pillar 2",
+    "caption": "Length bands over 2168 OCR-coded replies; regenerates as extraction accrues. Segments >= 8% of a column are labelled; smaller bands are left to the axis.",
+    "message": "40% of coded replies are detailed or very detailed (n=2168)",
+    "files": [
+      "09-substantiveness.png",
+      "09-substantiveness.svg"
+    ]
+  },
+  {
+    "id": "10-assurance-evasion",
+    "title": "Response signals",
+    "pillar": "Pillar 2",
+    "caption": "Bubble size = coded replies. Labels: assurance and evasion extremes first, then every department whose label fits clear of both the other labels and the marks (6 of 50 labelled; the remaining departments sit inside one dense cluster). Ported signal registries; weights, not scores.",
+    "message": "Assurance language outweighs evasion in 41 of 50 departments",
+    "files": [
+      "10-assurance-evasion.png",
+      "10-assurance-evasion.svg"
+    ]
+  },
+  {
+    "id": "11-coverage",
+    "title": "Reply coverage",
+    "pillar": "Pillar 2",
+    "caption": "Whether a signed reply PDF exists per session; every bar labelled. Source: stats.json.",
+    "message": "Reply coverage hit 100% in 9 of 11 sessions",
+    "files": [
+      "11-coverage.png",
+      "11-coverage.svg"
+    ]
+  },
+  {
+    "id": "12-resolution",
+    "title": "Resolution tracking",
+    "pillar": "Pillar 3",
+    "caption": "Bar until replies resolve trajectories; a Sankey follows once the resolved/progressing/stalled split is sufficiently evidenced. Source: layer5_semantic.json (embedding families).",
+    "message": "140 of 194 recurring subjects show no progress language",
+    "files": [
+      "12-resolution.png",
+      "12-resolution.svg"
+    ]
+  },
+  {
+    "id": "13-emerging",
+    "title": "Emerging issues",
+    "pillar": "Pillar 3",
+    "caption": "First seen in the last 3 sessions, \u22652 occurrences, \u22652 askers. Source: layer5_semantic.json (embedding families). Earlier sessions are shaded because they are outside the watchlist window.",
+    "message": "9 issues first surfaced in the 3 most recent sessions",
+    "files": [
+      "13-emerging.png",
+      "13-emerging.svg"
+    ]
+  },
+  {
+    "id": "14-starred",
+    "title": "Question types",
+    "pillar": "Pillar 2",
+    "caption": "Starred (oral) vs Unstarred (written) mix per session; every column labelled with its total and starred share, and segments >= 8% of a column labelled inside. Source: CSV Category field.",
+    "message": "Starred (oral) questions outweigh unstarred 1,667 to 550",
+    "files": [
+      "14-starred.png",
+      "14-starred.svg"
+    ]
+  },
+  {
+    "id": "15-mla-bubble",
+    "title": "Asker activity",
+    "pillar": "Pillar 1",
+    "caption": "Each bubble = one of the 20 most active members; size = questions. Labels: the 5 most active and 3 broadest first, then every other bubble whose label fits clear of both the other labels and the marks (17 labelled). Members are named by the shortest form that identifies one of them: 9 surnames are carried by more than one member. Source: stats.json.",
+    "message": "Mukul Sangma asks the most (230) with the widest departmental reach (24 departments)",
+    "files": [
+      "15-mla-bubble.png",
+      "15-mla-bubble.svg"
+    ]
+  },
+  {
+    "id": "16-theme-dept-heatmap",
+    "title": "Theme \u00d7 department",
+    "pillar": "Pillar 1",
+    "caption": "76 of 144 cells hold at least one question; 17 hold 10 or more and carry 88% of the 1,464 questions in the matrix; the top 10 pairings alone hold 81%. The distribution is long-tailed (median cell 1, largest 213), so colour uses a square-root scale while every cell prints its exact count. Largest single pairing: Education & Schools \u00d7 Education (213). Column totals in brackets. Source: layer1_themes.json.",
+    "message": "17 of 144 theme \u00d7 department pairings carry 10+ questions \u2014 and they hold 88% of the evidence",
+    "files": [
+      "16-theme-dept-heatmap.png",
+      "16-theme-dept-heatmap.svg"
+    ]
+  },
+  {
+    "id": "17-mentioned-places",
+    "title": "Mentioned geography",
+    "pillar": "Pillar 1",
+    "caption": "What the text names (gazetteer scan) \u2014 complements MLA-seat geography. Source: layer2_geography.json.",
+    "message": "37.8% of questions name a place \u2014 East Khasi Hills most often (16.5%)",
+    "files": [
+      "17-mentioned-places.png",
+      "17-mentioned-places.svg"
+    ]
+  },
+  {
+    "id": "18-scrutiny-intensity",
+    "title": "Scrutiny vs resources",
+    "pillar": "Pillar 1",
+    "caption": "Rate = questions (2021\u20132026) \u00f7 budget allocation (2025\u201326), \u00d7100; 13 departments with at least 5 questions; median 9.4 questions per \u20b9100 crore. Navy = at or above the median, gold = below; sign is also carried by bar length and by the printed value, never by colour alone. Every bar shows its rate and both inputs. Limitation: one budget year against a five-year question count, so this compares *levels*, not trends. Sources: DEPT_BUDGET, CSV.",
+    "message": "Chief Minister is asked 75\u00d7 more per rupee than Finance \u2014 which holds the largest budget (\u20b98,200 crore) and 34 questions",
+    "files": [
+      "18-scrutiny-intensity.png",
+      "18-scrutiny-intensity.svg"
+    ]
+  },
+  {
+    "id": "19-opposition",
+    "title": "Opposition intensity",
+    "pillar": "Pillar 2",
+    "caption": "Asker bloc from MLA party records; counts only, no effectiveness claims. Segments >= 8% of a column are labelled; the opposition share sits above each column. Source: layer3_demands.json.",
+    "message": "The opposition asked 1,768 of 2,217 questions (80%) and led questioning in 10 of 11 sessions",
+    "files": [
+      "19-opposition.png",
+      "19-opposition.svg"
+    ]
+  },
+  {
+    "id": "20-exec-stages",
+    "title": "Execution stages",
+    "pillar": "Pillar 2",
+    "caption": "Highest evidenced lifecycle stage per reply (negation-aware). n=2168 coded replies. Segments >= 8% of a column are labelled; smaller bands are left to the axis.",
+    "message": "70% of replies evidence no delivery stage; \u201cSanction/Funding\u201d is the most-cited stage",
+    "files": [
+      "20-exec-stages.png",
+      "20-exec-stages.svg"
+    ]
+  },
+  {
+    "id": "21-latency",
+    "title": "Reply latency",
+    "pillar": "Pillar 2",
+    "caption": "Trustworthy date pairs only; flagged pairs excluded but kept in data. Bins holding >= 10% of the tallest bin are labelled.",
+    "message": "Median reply time: 7 days; 0% take longer than 30 days",
+    "files": [
+      "21-latency.png",
+      "21-latency.svg"
+    ]
+  }
+]

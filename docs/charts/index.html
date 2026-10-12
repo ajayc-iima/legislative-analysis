@@ -1,0 +1,364 @@
+<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Legislative Oversight in Meghalaya — Dashboard</title><style>
+:root { --navy:#1A3C6E; --teal:#2A8E9C; --gold:#C9A227; --ink:#222; --mut:#555;
+        --line:#E0E0E0; --bg:#FAFAF8; --card:#FFFFFF; }
+* { box-sizing:border-box; }
+body { font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       color:var(--ink); background:var(--bg); margin:0; line-height:1.55; }
+.wrap { max-width:1080px; margin:0 auto; padding:2rem 1.25rem 4rem; }
+header.hero { background:linear-gradient(135deg,#1A3C6E 0%,#2A8E9C 100%);
+              color:#fff; border-radius:12px; padding:1.8rem 1.6rem; margin-bottom:1rem; }
+header.hero h1 { margin:0 0 .4rem; font-size:2rem; }
+header.hero p { margin:.2rem 0; color:#DCEBF5; }
+header.hero code { background:rgba(255,255,255,.15); color:#fff; }
+nav.toc { position:sticky; top:0; z-index:10; background:var(--bg);
+          padding:.6rem 0; border-bottom:1px solid var(--line); margin-bottom:1rem; }
+nav.toc a { color:var(--navy); text-decoration:none; font-size:.88rem;
+            margin-right:1.1rem; font-weight:600; }
+nav.toc a:hover { text-decoration:underline; }
+.pillar { margin:2.5rem 0 1rem; }
+.pillar h2 { color:var(--navy); border-left:6px solid var(--gold);
+             padding-left:.6rem; margin-bottom:.25rem; }
+.pillar > p { color:var(--mut); margin-top:0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+        gap:1.25rem; }
+figure.card { background:var(--card); border:1px solid var(--line);
+              border-radius:10px; margin:0; padding:1rem; }
+figure.card img { width:100%; height:auto; display:block; }
+figure.card h3 { margin:.4rem 0 .3rem; font-size:1.02rem; color:var(--navy); }
+figure.card figcaption { font-size:.82rem; color:var(--mut); }
+table.data { border-collapse:collapse; width:100%; font-size:.88rem;
+             background:var(--card); }
+table.data th, table.data td { border:1px solid var(--line); padding:.4rem .6rem;
+             text-align:left; }
+table.data th { background:var(--navy); color:#fff; }
+table.data tr:nth-child(even) td { background:#F4F6F9; }
+.kpis { display:flex; flex-wrap:wrap; gap:.75rem; margin:1rem 0; }
+.kpi { background:var(--card); border:1px solid var(--line); border-radius:8px;
+       padding:.6rem 1rem; min-width:130px; }
+.kpi b { display:block; font-size:1.35rem; color:var(--navy); }
+.kpi span { font-size:.78rem; color:var(--mut); }
+.note { background:#FFF8E6; border:1px solid var(--gold); border-radius:8px;
+        padding:.8rem 1rem; font-size:.88rem; }
+code { background:#EFF1F4; padding:.1rem .35rem; border-radius:4px; font-size:.85em; }
+footer { margin-top:3rem; color:var(--mut); font-size:.82rem;
+         border-top:1px solid var(--line); padding-top:1rem; }
+.brief { background:var(--card); border:1px solid var(--line); border-radius:10px;
+         padding:1rem 1.2rem; margin:0 0 1rem; }
+.brief h3 { margin:0 0 .2rem; color:var(--navy); }
+.brief .meta { font-size:.82rem; color:var(--mut); margin-bottom:.5rem; }
+.brief ul { margin:.3rem 0 .6rem 1.1rem; padding:0; font-size:.9rem; }
+.brief li { margin:.15rem 0; }
+.tag { display:inline-block; font-size:.75rem; background:#EAF2F8; color:var(--navy);
+       border-radius:20px; padding:.05rem .6rem; margin-right:.3rem; }
+.gap { display:flex; align-items:center; gap:.6rem; margin:.3rem 0; font-size:.85rem; }
+.gap .lbl { width:170px; flex:none; color:var(--mut); }
+.gap .bar { flex:1; background:#EDF0F3; border-radius:4px; height:14px; position:relative; }
+.gap .fill { background:var(--teal); height:14px; border-radius:4px; }
+.gap .fill.hot { background:#C0392B; }
+.gap .val { width:90px; flex:none; text-align:right; font-variant-numeric:tabular-nums; }
+@media print { body { background:#fff; } figure.card, .brief { break-inside:avoid; } nav.toc { display:none; } }
+</style></head><body><div class='wrap'>
+<header class='hero'><h1>Legislative Oversight in Meghalaya</h1><p>Visual companion to the three-pillar Compendium — descriptive evidence only, no composite scores. Every figure is reproducible from <code>data/dl_questions_raw.csv</code> and <code>data/extracted/extracted.jsonl</code>.</p><p>Generated 2026-10-12 15:47 · 2,217 questions in scope · 11 sessions (2021–2026) · 54 departments · 57 MLAs · replies OCR-extracted: 2,186/2,186</p></header>
+<nav class='toc'><a href='#p1'>Attention</a><a href='#p2'>Oversight quality</a><a href='#p3'>Persistent challenges</a><a href='#anticipate'>Anticipate &amp; prepare</a><a href='#gaps'>Preparedness gaps</a><a href='#methods'>Methods</a></nav>
+<div class='kpis'>
+<div class='kpi'><b>2,217</b><span>questions</span></div>
+<div class='kpi'><b>98.6%</b><span>reply coverage</span></div>
+<div class='kpi'><b>66</b><span>recurring subjects</span></div>
+<div class='kpi'><b>6</b><span>emerging issues</span></div>
+<div class='kpi'><b>7</b><span>median reply latency (days)</span></div>
+<div class='kpi'><b>0.2%</b><span>replies tabled after sitting</span></div>
+<div class='kpi'><b>14.0</b><span>median notice (days)</span></div>
+<div class='kpi'><b>0.7%</b><span>boilerplate replies</span></div>
+</div>
+<section class='pillar' id='p1'><h2>Pillar 1 — Patterns of Legislative Attention</h2><p>Which departments, policy domains, places and subjects receive the most attention.</p></section>
+<div class='grid'>
+<figure class='card'><h3>Department attention</h3><img src='01-dept-attention.svg' alt='Department attention' loading='lazy'><figcaption>Questions per department with share of the corpus. Source: stats.json.</figcaption></figure>
+<figure class='card'><h3>Attention matrix</h3><img src='02-dept-session-heatmap.svg' alt='Attention matrix' loading='lazy'><figcaption>Question counts for the top-15 departments across all 11 sessions. Source: CSV.</figcaption></figure>
+<figure class='card'><h3>Thematic attention</h3><img src='03-themes.svg' alt='Thematic attention' loading='lazy'><figcaption>Rule-based thematic coding (Layer 1); every row records its evidence. Source: layer1_themes.json.</figcaption></figure>
+<figure class='card'><h3>Theme × department</h3><img src='16-theme-dept-heatmap.svg' alt='Theme × department' loading='lazy'><figcaption>76 of 144 cells hold at least one question; 17 hold 10 or more and carry 88% of the 1,464 questions in the matrix; the top 10 pairings alone hold 81%. The distribution is long-tailed (median cell 1, largest 213), so colour uses a square-root scale while every cell prints its exact count. Largest single pairing: Education &amp; Schools × Education (213). Column totals in brackets. Source: layer1_themes.json.</figcaption></figure>
+<figure class='card'><h3>Geographic attention</h3><img src='04-districts.svg' alt='Geographic attention' loading='lazy'><figcaption>Bar substitute for a choropleth (no boundary shapefile in repo); identical counts. Source: layer2_geography.json.</figcaption></figure>
+<figure class='card'><h3>Mentioned geography</h3><img src='17-mentioned-places.svg' alt='Mentioned geography' loading='lazy'><figcaption>What the text names (gazetteer scan) — complements MLA-seat geography. Source: layer2_geography.json.</figcaption></figure>
+<figure class='card'><h3>Scrutiny vs resources</h3><img src='18-scrutiny-intensity.svg' alt='Scrutiny vs resources' loading='lazy'><figcaption>Rate = questions (2021–2026) ÷ budget allocation (2025–26), ×100; 13 departments with at least 5 questions; median 9.4 questions per ₹100 crore. Navy = at or above the median, gold = below; sign is also carried by bar length and by the printed value, never by colour alone. Every bar shows its rate and both inputs. Limitation: one budget year against a five-year question count, so this compares *levels*, not trends. Sources: DEPT_BUDGET, CSV.</figcaption></figure>
+<figure class='card'><h3>Sustained attention</h3><img src='05-recurring-dots.svg' alt='Sustained attention' loading='lazy'><figcaption>Each dot = the subject was asked in that session (exact normalized match). Source: layer5_resolution.json.</figcaption></figure>
+<figure class='card'><h3>Asker activity</h3><img src='15-mla-bubble.svg' alt='Asker activity' loading='lazy'><figcaption>Each bubble = one of the 20 most active members; size = questions. Labels: the 5 most active and 3 broadest first, then every other bubble whose label fits clear of both the other labels and the marks (17 labelled). Members are named by the shortest form that identifies one of them: 9 surnames are carried by more than one member. Source: stats.json.</figcaption></figure>
+</div>
+<h3>Policy domains</h3><table class='data'><thead><tr>
+<th>Theme</th>
+<th>Questions</th>
+<th>Share</th>
+</tr></thead><tbody>
+<tr><td>Governance &amp; Administration</td><td>297</td><td>13.4%</td></tr>
+<tr><td>Roads &amp; Infrastructure</td><td>264</td><td>11.9%</td></tr>
+<tr><td>Education &amp; Schools</td><td>229</td><td>10.3%</td></tr>
+<tr><td>Health Services</td><td>220</td><td>9.9%</td></tr>
+<tr><td>Employment &amp; Jobs</td><td>193</td><td>8.7%</td></tr>
+<tr><td>Agriculture &amp; Farming</td><td>163</td><td>7.4%</td></tr>
+<tr><td>Power &amp; Electricity</td><td>144</td><td>6.5%</td></tr>
+<tr><td>Law &amp; Order</td><td>128</td><td>5.8%</td></tr>
+<tr><td>Water Supply</td><td>126</td><td>5.7%</td></tr>
+<tr><td>Finance &amp; Budget</td><td>107</td><td>4.8%</td></tr>
+<tr><td>Urban Development</td><td>89</td><td>4.0%</td></tr>
+<tr><td>Environment &amp; Natural Resources</td><td>74</td><td>3.3%</td></tr>
+<tr><td>Social Welfare</td><td>56</td><td>2.5%</td></tr>
+<tr><td>Mining &amp; Geology</td><td>56</td><td>2.5%</td></tr>
+<tr><td>Tribal &amp; Traditional</td><td>30</td><td>1.4%</td></tr>
+<tr><td>District Council</td><td>21</td><td>0.9%</td></tr>
+<tr><td>Border &amp; Inter-State</td><td>17</td><td>0.8%</td></tr>
+<tr><td>General / Other</td><td>3</td><td>0.1%</td></tr>
+</tbody></table>
+<h3>Geographic attention</h3><table class='data'><thead><tr>
+<th>Region (asker&#x27;s seat)</th>
+<th>Questions</th>
+<th>Share</th>
+</tr></thead><tbody>
+<tr><td>Khasi Hills</td><td>1130</td><td>51.0%</td></tr>
+<tr><td>Garo Hills</td><td>795</td><td>35.9%</td></tr>
+<tr><td>Ri Bhoi</td><td>242</td><td>10.9%</td></tr>
+<tr><td>Jaintia Hills</td><td>50</td><td>2.3%</td></tr>
+</tbody></table>
+<table class='data'><thead><tr>
+<th>District (asker&#x27;s seat, top 10)</th>
+<th>Questions</th>
+<th>Share</th>
+</tr></thead><tbody>
+<tr><td>East Khasi Hills</td><td>1014</td><td>45.7%</td></tr>
+<tr><td>West Garo Hills</td><td>412</td><td>18.6%</td></tr>
+<tr><td>East Garo Hills</td><td>250</td><td>11.3%</td></tr>
+<tr><td>Ri Bhoi</td><td>242</td><td>10.9%</td></tr>
+<tr><td>West Khasi Hills</td><td>83</td><td>3.7%</td></tr>
+<tr><td>South West Garo Hills</td><td>81</td><td>3.7%</td></tr>
+<tr><td>North Garo Hills</td><td>48</td><td>2.2%</td></tr>
+<tr><td>West Jaintia Hills</td><td>36</td><td>1.6%</td></tr>
+<tr><td>South West Khasi Hills</td><td>22</td><td>1.0%</td></tr>
+<tr><td>East Jaintia Hills</td><td>14</td><td>0.6%</td></tr>
+</tbody></table>
+<table class='data'><thead><tr>
+<th>District named in question text (top 10)</th>
+<th>Questions</th>
+<th>Share of all questions</th>
+</tr></thead><tbody>
+<tr><td>East Khasi Hills</td><td>365</td><td>16.5%</td></tr>
+<tr><td>West Garo Hills</td><td>191</td><td>8.6%</td></tr>
+<tr><td>Ri Bhoi</td><td>74</td><td>3.3%</td></tr>
+<tr><td>West Khasi Hills</td><td>53</td><td>2.4%</td></tr>
+<tr><td>East Garo Hills</td><td>50</td><td>2.3%</td></tr>
+<tr><td>North Garo Hills</td><td>33</td><td>1.5%</td></tr>
+<tr><td>South West Garo Hills</td><td>31</td><td>1.4%</td></tr>
+<tr><td>West Jaintia Hills</td><td>27</td><td>1.2%</td></tr>
+<tr><td>East Jaintia Hills</td><td>21</td><td>0.9%</td></tr>
+<tr><td>South West Khasi Hills</td><td>21</td><td>0.9%</td></tr>
+</tbody></table>
+<p>37.8% of questions name any place; the rest are state-wide in wording. MLA-seat geography and text mentions are two views of the same corpus — neither replaces the other.</p>
+<section class='pillar' id='p2'><h2>Pillar 2 — Dynamics and Quality of Oversight</h2><p>What is demanded, how attention moves over time, and how departments respond.</p></section>
+<div class='grid'>
+<figure class='card'><h3>Demand types</h3><img src='06-demand-by-dept.svg' alt='Demand types' loading='lazy'><figcaption>What each question demands: data, reasons, action, or follow-up. Segments &gt;= 8% of a column are labelled. Source: layer3_demands.json.</figcaption></figure>
+<figure class='card'><h3>Volume trend</h3><img src='07-session-trend.svg' alt='Volume trend' loading='lazy'><figcaption>Session-level question volume with the assembly transition shaded; all 11 points labelled. Source: stats.json.</figcaption></figure>
+<figure class='card'><h3>Attention shifts</h3><img src='08-dept-slopes.svg' alt='Attention shifts' loading='lazy'><figcaption>Mean per-session change in question volume. Source: layer6_trends.json.</figcaption></figure>
+<figure class='card'><h3>Question types</h3><img src='14-starred.svg' alt='Question types' loading='lazy'><figcaption>Starred (oral) vs Unstarred (written) mix per session; every column labelled with its total and starred share, and segments &gt;= 8% of a column labelled inside. Source: CSV Category field.</figcaption></figure>
+<figure class='card'><h3>Opposition intensity</h3><img src='19-opposition.svg' alt='Opposition intensity' loading='lazy'><figcaption>Asker bloc from MLA party records; counts only, no effectiveness claims. Segments &gt;= 8% of a column are labelled; the opposition share sits above each column. Source: layer3_demands.json.</figcaption></figure>
+<figure class='card'><h3>Reply coverage</h3><img src='11-coverage.svg' alt='Reply coverage' loading='lazy'><figcaption>Whether a signed reply PDF exists per session; every bar labelled. Source: stats.json.</figcaption></figure>
+<figure class='card'><h3>Response quality</h3><img src='09-substantiveness.svg' alt='Response quality' loading='lazy'><figcaption>Length bands over 2168 OCR-coded replies; regenerates as extraction accrues. Segments &gt;= 8% of a column are labelled; smaller bands are left to the axis.</figcaption></figure>
+<figure class='card'><h3>Response signals</h3><img src='10-assurance-evasion.svg' alt='Response signals' loading='lazy'><figcaption>Bubble size = coded replies. Labels: assurance and evasion extremes first, then every department whose label fits clear of both the other labels and the marks (6 of 50 labelled; the remaining departments sit inside one dense cluster). Ported signal registries; weights, not scores.</figcaption></figure>
+<figure class='card'><h3>Execution stages</h3><img src='20-exec-stages.svg' alt='Execution stages' loading='lazy'><figcaption>Highest evidenced lifecycle stage per reply (negation-aware). n=2168 coded replies. Segments &gt;= 8% of a column are labelled; smaller bands are left to the axis.</figcaption></figure>
+<figure class='card'><h3>Reply latency</h3><img src='21-latency.svg' alt='Reply latency' loading='lazy'><figcaption>Trustworthy date pairs only; flagged pairs excluded but kept in data. Bins holding &gt;= 10% of the tallest bin are labelled.</figcaption></figure>
+</div>
+<h3>Demand mix</h3><table class='data'><thead><tr>
+<th>Demand type</th>
+<th>Questions</th>
+<th>Share</th>
+</tr></thead><tbody>
+<tr><td>Information</td><td>1629</td><td>73.5%</td></tr>
+<tr><td>Action</td><td>366</td><td>16.5%</td></tr>
+<tr><td>Explanation</td><td>118</td><td>5.3%</td></tr>
+<tr><td>Accountability</td><td>104</td><td>4.7%</td></tr>
+</tbody></table>
+<h3>Who asks: opposition share by session</h3><table class='data'><thead><tr>
+<th>Session</th>
+<th>Ruling</th>
+<th>Opposition</th>
+<th>Unknown</th>
+<th>Opposition share</th>
+</tr></thead><tbody>
+<tr><td>Tenth Budget Session, 2021</td><td>5</td><td>145</td><td>0</td><td>96.7%</td></tr>
+<tr><td>Tenth Budget Session, 2022</td><td>3</td><td>128</td><td>0</td><td>97.7%</td></tr>
+<tr><td>Tenth Autumn Session, 2022</td><td>6</td><td>179</td><td>0</td><td>96.8%</td></tr>
+<tr><td>Eleventh Budget Session, 2023</td><td>33</td><td>58</td><td>0</td><td>63.7%</td></tr>
+<tr><td>Eleventh Autumn Session, 2023</td><td>61</td><td>292</td><td>0</td><td>82.7%</td></tr>
+<tr><td>Eleventh Budget Session, 2024</td><td>55</td><td>177</td><td>0</td><td>76.3%</td></tr>
+<tr><td>Eleventh Autumn Session, 2024</td><td>99</td><td>87</td><td>0</td><td>46.8%</td></tr>
+<tr><td>Eleventh Budget Session, 2025</td><td>6</td><td>126</td><td>0</td><td>95.5%</td></tr>
+<tr><td>Eleventh Autumn Session, 2025</td><td>39</td><td>132</td><td>0</td><td>77.2%</td></tr>
+<tr><td>Eleventh Budget Session, 2026</td><td>64</td><td>211</td><td>0</td><td>76.7%</td></tr>
+<tr><td>Eleventh Autumn Session, 2026</td><td>78</td><td>233</td><td>0</td><td>74.9%</td></tr>
+</tbody></table>
+<h3>Scrutiny vs budget (2025–26 allocations vs 2021–26 questions)</h3><table class='data'><thead><tr>
+<th>Department</th>
+<th>Questions</th>
+<th>Budget (₹ cr)</th>
+<th>Questions per ₹100 cr</th>
+</tr></thead><tbody>
+<tr><td>Finance</td><td>34</td><td>8,200</td><td>0.4</td></tr>
+<tr><td>Education</td><td>222</td><td>4,890</td><td>4.5</td></tr>
+<tr><td>Health &amp; Family Welfare</td><td>219</td><td>2,310</td><td>9.5</td></tr>
+<tr><td>Public Works (Roads)</td><td>185</td><td>2,140</td><td>8.6</td></tr>
+<tr><td>Power</td><td>179</td><td>1,980</td><td>9.0</td></tr>
+<tr><td>Public Health Engineering</td><td>120</td><td>1,420</td><td>8.5</td></tr>
+<tr><td>Social Welfare</td><td>59</td><td>890</td><td>6.6</td></tr>
+<tr><td>Urban Affairs</td><td>68</td><td>720</td><td>9.4</td></tr>
+<tr><td>Agriculture</td><td>74</td><td>640</td><td>11.6</td></tr>
+<tr><td>Forests &amp; Environment</td><td>54</td><td>380</td><td>14.2</td></tr>
+<tr><td>Chief Minister</td><td>96</td><td>310</td><td>31.0</td></tr>
+<tr><td>Sports &amp; Youth Affairs</td><td>53</td><td>240</td><td>22.1</td></tr>
+<tr><td>Mining and Geology</td><td>0</td><td>220</td><td>0.0</td></tr>
+<tr><td>Information Technology</td><td>0</td><td>190</td><td>0.0</td></tr>
+<tr><td>Tourism</td><td>40</td><td>180</td><td>22.2</td></tr>
+</tbody></table>
+<section class='pillar' id='p3'><h2>Pillar 3 — Persistent and Emerging Challenges</h2><p>What recurs, what is stalled, and what is emerging.</p></section>
+<div class='grid'>
+<figure class='card'><h3>Resolution tracking</h3><img src='12-resolution.svg' alt='Resolution tracking' loading='lazy'><figcaption>Bar until replies resolve trajectories; a Sankey follows once resolved/progressing/stalled split. Source: layer5_resolution.json.</figcaption></figure>
+<figure class='card'><h3>Emerging issues</h3><img src='13-emerging.svg' alt='Emerging issues' loading='lazy'><figcaption>First seen in the last 3 sessions, ≥2 occurrences, ≥2 askers. Source: layer6_trends.json.</figcaption></figure>
+</div>
+<h3>Emerging issues watchlist</h3>
+<table class='data'><thead><tr>
+<th>Subject</th>
+<th>First seen</th>
+<th>Occurrences</th>
+<th>Askers</th>
+<th>Departments</th>
+</tr></thead><tbody>
+<tr><td>Mission Education</td><td>Eleventh Autumn Session, 2026</td><td>2</td><td>2</td><td>Education Department</td></tr>
+<tr><td>Ration Card</td><td>Eleventh Autumn Session, 2025</td><td>2</td><td>2</td><td>Food Civil Supplies &amp; Consumers Affairs Department</td></tr>
+<tr><td>Replacement of Transformers</td><td>Eleventh Autumn Session, 2025</td><td>2</td><td>2</td><td>Power Department</td></tr>
+<tr><td>Revamped Distribution Sector Scheme</td><td>Eleventh Budget Session, 2026</td><td>2</td><td>2</td><td>Power Department</td></tr>
+<tr><td>Tourism Infrastructure Projects</td><td>Eleventh Autumn Session, 2026</td><td>2</td><td>2</td><td>Tourism Department</td></tr>
+<tr><td>Villages without Electricity</td><td>Eleventh Budget Session, 2026</td><td>2</td><td>2</td><td>Power Department</td></tr>
+</tbody></table>
+<h3>Stalled issues (recurring, no progress language in latest reply)</h3>
+<p>None coded as stalled yet — trajectories resolve as OCR replies accrue.</p>
+<section class='pillar' id='anticipate'><h2>Anticipate &amp; prepare by department</h2><p>Likely next-session questions and evidence-linked preparation steps. Full briefs for all departments: <code>output/anticipation/dept_briefs.json</code>.</p></section>
+<div class='brief'><h3>Education</h3><div class='meta'>222 questions (10.0%) · 11 sessions · coverage 99.5% · trend +3.00/session · 2 recurring · 215 replies coded</div>
+<b>Anticipate:</b><ul><li>Science and Commerce College at Mawphlang <span class='tag'>recurring, no progress language</span></li><li>Mission Education <span class='tag'>emerging (first Eleventh Autumn Session, 2026)</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 2.3% of replies name one).</li><li>Cite sanctioned/released amounts (only 12.1% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 19.4% of 67 staged replies do).</li><li>Report measurable progress on 1 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<div class='brief'><h3>Health &amp; Family Welfare</h3><div class='meta'>219 questions (9.9%) · 11 sessions · coverage 100.0% · trend +2.60/session · 8 recurring · 218 replies coded</div>
+<b>Anticipate:</b><ul><li>Tura Government Medical College <span class='tag'>recurring, no progress language</span></li><li>Tura Medical College <span class='tag'>recurring, no progress language</span></li><li>Shillong Medical College <span class='tag'>recurring, no progress language</span></li><li>Dispensary at Nonglum <span class='tag'>recurring, progress under way — expect follow-up</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 1.4% of replies name one).</li><li>Cite sanctioned/released amounts (only 14.7% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 26.2% of 61 staged replies do).</li><li>Report measurable progress on 3 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<div class='brief'><h3>Public Works (Roads)</h3><div class='meta'>185 questions (8.3%) · 11 sessions · coverage 100.0% · trend +1.80/session · 5 recurring · 184 replies coded</div>
+<b>Anticipate:</b><ul><li>Contractual Employees <span class='tag'>recurring, no progress language</span></li><li>Construction of Roads <span class='tag'>recurring, no progress language</span></li><li>Shillong-Dawki Road Project <span class='tag'>recurring, no progress language</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 1.6% of replies name one).</li><li>Cite sanctioned/released amounts (only 16.8% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 32.7% of 55 staged replies do).</li><li>Report measurable progress on 3 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<div class='brief'><h3>Power</h3><div class='meta'>179 questions (8.1%) · 11 sessions · coverage 98.9% · trend -0.90/session · 7 recurring · 177 replies coded</div>
+<b>Anticipate:</b><ul><li>Saubhagya Scheme <span class='tag'>recurring, no progress language</span></li><li>Damaged Transformer <span class='tag'>recurring, no progress language</span></li><li>Load Shedding <span class='tag'>recurring, no progress language</span></li><li>Replacement of Electric Poles <span class='tag'>recurring, progress under way — expect follow-up</span></li><li>Replacement of Transformers <span class='tag'>emerging (first Eleventh Autumn Session, 2025)</span></li><li>Revamped Distribution Sector Scheme <span class='tag'>emerging (first Eleventh Budget Session, 2026)</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 1.7% of replies name one).</li><li>Cite sanctioned/released amounts (only 27.1% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 26.8% of 41 staged replies do).</li><li>Report measurable progress on 3 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<div class='brief'><h3>Community &amp; Rural Development</h3><div class='meta'>121 questions (5.5%) · 11 sessions · coverage 100.0% · trend +0.80/session · 0 recurring · 120 replies coded</div>
+<b>Prepare:</b><ul><li>Reconcile completion claims with pending items (10.0% of replies contradict themselves in one paragraph).</li><li>Commit to dated timelines (only 2.5% of replies name one).</li><li>Cite sanctioned/released amounts (only 28.3% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 22.9% of 48 staged replies do).</li></ul>
+</div>
+<div class='brief'><h3>Public Health Engineering</h3><div class='meta'>120 questions (5.4%) · 11 sessions · coverage 99.2% · trend +0.50/session · 8 recurring · 119 replies coded</div>
+<b>Anticipate:</b><ul><li>New Shillong Township <span class='tag'>recurring, no progress language</span></li><li>Greater Shillong Water Supply Scheme <span class='tag'>recurring, no progress language</span></li><li>Construction of Water Tanks <span class='tag'>recurring, no progress language</span></li><li>New Shillong Water Supply Scheme <span class='tag'>recurring, no progress language</span></li><li>Greater Ampati Water Supply Scheme <span class='tag'>recurring, no progress language</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 4.2% of replies name one).</li><li>Cite sanctioned/released amounts (only 10.9% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 29.8% of 47 staged replies do).</li><li>Report measurable progress on 6 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<div class='brief'><h3>Home (Police)</h3><div class='meta'>119 questions (5.4%) · 11 sessions · coverage 97.5% · trend +0.30/session · 5 recurring · 113 replies coded</div>
+<b>Anticipate:</b><ul><li>Emergency Fire Service Station <span class='tag'>recurring, no progress language</span></li><li>Police Out-Post at Rambrai <span class='tag'>recurring, no progress language</span></li><li>Crimes against Women and Children <span class='tag'>recurring, no progress language</span></li><li>Drugs seized by the Police <span class='tag'>recurring, progress under way — expect follow-up</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 2.7% of replies name one).</li><li>Cite sanctioned/released amounts (only 11.5% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 0.0% of 21 staged replies do).</li><li>Report measurable progress on 3 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<div class='brief'><h3>Chief Minister</h3><div class='meta'>96 questions (4.3%) · 9 sessions · coverage 90.6% · trend -3.20/session · 2 recurring · 84 replies coded</div>
+<b>Anticipate:</b><ul><li>Appointment of Consultants <span class='tag'>recurring, no progress language</span></li><li>Unclaimed Coal <span class='tag'>recurring, progress under way — expect follow-up</span></li></ul>
+<b>Prepare:</b><ul><li>Commit to dated timelines (only 2.4% of replies name one).</li><li>Cite sanctioned/released amounts (only 17.9% of replies name one).</li><li>Cite physical progress proof (percentages, measurement records, inspections) on project replies (only 6.7% of 15 staged replies do).</li><li>Report measurable progress on 1 stalled recurring subject(s) — repeated boilerplate invites follow-ups.</li></ul>
+</div>
+<section class='pillar' id='gaps'><h2>Preparedness gap profiles</h2><p>The gap is a profile, not a score: seven separately-reported dimensions per department. Wider bars = further from answer-ready. Red marks the worst value per row.</p></section>
+<div class='brief'><h3>Health &amp; Family Welfare <span class='tag'>218 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:2%'></span></span><span class='val'>1.8%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:6%'></span></span><span class='val'>6.4%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:12%'></span></span><span class='val'>11.9%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:99%'></span></span><span class='val'>98.6%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:85%'></span></span><span class='val'>85.3%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:6%'></span></span><span class='val'>6.0 days</span></div>
+</div>
+<div class='brief'><h3>Education <span class='tag'>215 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0.5%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:1%'></span></span><span class='val'>1.4%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:6%'></span></span><span class='val'>6.0%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:23%'></span></span><span class='val'>22.8%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:98%'></span></span><span class='val'>97.7%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:88%'></span></span><span class='val'>87.9%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:6%'></span></span><span class='val'>6.0 days</span></div>
+</div>
+<div class='brief'><h3>Public Works (Roads) <span class='tag'>184 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:1%'></span></span><span class='val'>1.1%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:8%'></span></span><span class='val'>8.2%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:31%'></span></span><span class='val'>31.0%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:98%'></span></span><span class='val'>98.4%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:83%'></span></span><span class='val'>83.2%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:5%'></span></span><span class='val'>5.0 days</span></div>
+</div>
+<div class='brief'><h3>Power <span class='tag'>177 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:1%'></span></span><span class='val'>1.1%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:1%'></span></span><span class='val'>1.1%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:4%'></span></span><span class='val'>4.0%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:18%'></span></span><span class='val'>18.1%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:98%'></span></span><span class='val'>98.3%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:73%'></span></span><span class='val'>72.9%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:7%'></span></span><span class='val'>7.0 days</span></div>
+</div>
+<div class='brief'><h3>Community &amp; Rural Development <span class='tag'>120 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:10%'></span></span><span class='val'>10.0%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:12%'></span></span><span class='val'>11.7%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:98%'></span></span><span class='val'>97.5%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:72%'></span></span><span class='val'>71.7%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:8%'></span></span><span class='val'>8 days</span></div>
+</div>
+<div class='brief'><h3>Public Health Engineering <span class='tag'>119 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:1%'></span></span><span class='val'>0.8%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:9%'></span></span><span class='val'>9.2%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:10%'></span></span><span class='val'>10.1%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:96%'></span></span><span class='val'>95.8%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:89%'></span></span><span class='val'>89.1%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:11%'></span></span><span class='val'>11.0 days</span></div>
+</div>
+<div class='brief'><h3>Home (Police) <span class='tag'>113 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:2%'></span></span><span class='val'>2.5%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:1%'></span></span><span class='val'>0.9%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:4%'></span></span><span class='val'>4.4%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:11%'></span></span><span class='val'>10.6%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:97%'></span></span><span class='val'>97.3%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:88%'></span></span><span class='val'>88.5%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:7%'></span></span><span class='val'>7 days</span></div>
+</div>
+<div class='brief'><h3>Planning <span class='tag'>84 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:16%'></span></span><span class='val'>15.5%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:99%'></span></span><span class='val'>98.8%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:88%'></span></span><span class='val'>88.1%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:10%'></span></span><span class='val'>10 days</span></div>
+</div>
+<div class='brief'><h3>Chief Minister <span class='tag'>84 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:9%'></span></span><span class='val'>9.4%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:5%'></span></span><span class='val'>4.8%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:26%'></span></span><span class='val'>26.2%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:98%'></span></span><span class='val'>97.6%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:82%'></span></span><span class='val'>82.1%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:9%'></span></span><span class='val'>9.0 days</span></div>
+</div>
+<div class='brief'><h3>Agriculture <span class='tag'>71 coded replies</span></h3>
+<div class='gap'><span class='lbl'>Unanswered demand</span><span class='bar'><span class='fill' style='width:3%'></span></span><span class='val'>2.7%</span></div>
+<div class='gap'><span class='lbl'>Boilerplate replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Contradictory replies</span><span class='bar'><span class='fill' style='width:4%'></span></span><span class='val'>4.2%</span></div>
+<div class='gap'><span class='lbl'>Thin-evidence replies</span><span class='bar'><span class='fill' style='width:0%'></span></span><span class='val'>0%</span></div>
+<div class='gap'><span class='lbl'>Replies without timeline</span><span class='bar'><span class='fill' style='width:100%'></span></span><span class='val'>100.0%</span></div>
+<div class='gap'><span class='lbl'>Replies without budget</span><span class='bar'><span class='fill' style='width:78%'></span></span><span class='val'>77.5%</span></div>
+<div class='gap'><span class='lbl'>Median latency</span><span class='bar'><span class='fill' style='width:12%'></span></span><span class='val'>12 days</span></div>
+</div>
+<section class='pillar' id='methods'><h2>Methods &amp; limitations</h2></section>
+<div class='note'><p><b>Reproducibility.</b> Thematic coding is keyword rules with department-sector tie-breaks (evidence per row); geography is MLA lookup plus a gazetteer scan; demand types are Information / Explanation / Action / Accountability; response quality is four separately-reported dimensions from ported regex registries; recurrence is exact normalized match across sessions (under-merges paraphrases, never over-merges).</p><p><b>Known limits.</b> OCR accuracy is bounded (~0.94/field); flagged date pairs are excluded from timeliness but kept in the data. MLA-based geography assumes questions concern the asker's own seat. regenerate everything with <code>python scripts/run_layers.py &amp;&amp; python scripts/build_compendium.py &amp;&amp; python scripts/build_charts.py &amp;&amp; python scripts/build_dashboard.py &amp;&amp; python scripts/build_report.py</code>.</p></div>
+<footer>Legislative Analysis · Meghalaya Assembly (2021–2026 scope) · Compendium text: <code>output/compendium/COMPENDIUM.md</code> · Shareable report: <code>output/report/index.html</code> · Data: <code>output/layers/*.json</code></footer>
+</div></body></html>
