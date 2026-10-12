@@ -214,16 +214,16 @@ all figures computed live in `output/report/index.html`)
   63.3% high specificity — length is not the gap, specifics are
   thinner than length suggests.
 - **Commitment scarcity.** Timeline 2.0%, responsible party
-  4.8%, budget figure 17.8%; progress evidence 21.6% of the
-  523 replies evidencing a delivery stage.
+  4.8%, budget figure 17.8%; progress evidence 21.8% of the
+  524 replies evidencing a delivery stage.
 - **Discipline signals.** Boilerplate 0.7%, self-contradiction
   5.7%; assurance weight 3.22 vs evasion 0.23.
-- **Speed.** 1,408 trustworthy date pairs: median 7 days,
+- **Speed.** 1,409 trustworthy date pairs: median 7 days,
   P75 9 days, 0.1% over 30 days; median departmental notice
   14 days; 3 late replies (0.2%).
 - **Delivery evidence.** 70.0% of replies evidence no delivery
   stage; most-cited stages are Sanction/Funding (175),
-  Completion (158), Implementation (125).
+  Completion (159), Implementation (125).
 
 ### 6.3 Resolution and learning (Pillar 3)
 - **Trajectories (66 recurring subjects).** Stalled 41,
