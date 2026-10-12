@@ -17,6 +17,7 @@ Regenerate any time: python scripts/build_charts.py
 
 import csv
 import json
+import os
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -44,6 +45,7 @@ sys.path.insert(0, str(REPO))
 from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows, parse_date  # noqa: E402
 from legislative_analysis.codebook import normalize_dept  # noqa: E402
+from legislative_analysis.naming import member_labels, shared_surnames  # noqa: E402
 from legislative_analysis import longitudinal as longi  # noqa: E402
 from build_compendium import compute_layer4, load_extracted  # noqa: E402
 
@@ -77,6 +79,12 @@ MANIFEST = []
 LABEL_MIN_SEGMENT_PCT = 8.0    # stacked segment must be this tall to be labelled
 FULL_LABEL_MAX = 30             # above this, scatters label their extremes
 EXTREME_LABELS = 5              # per axis, for dense scatters
+# Placement attempts for a scatter label, in order: right of the point, then
+# left, then above, then below, then a lower-right diagonal. Tried in this
+# order so a label moves rather than disappearing.
+LABEL_OFFSETS = ((8, 0, "left"), (-8, 0, "right"), (0, 12, "center"),
+                 (0, -13, "center"), (10, -7, "left"))
+MARKER_CLEARANCE_PX = 4        # keep label text off neighbouring marks
 POLICY_ALL = "Every mark is labelled."
 POLICY_EXTREMES = (f"Labelling: the {EXTREME_LABELS} most active members and the "
                     "3 broadest (overlap removed) — too many bubbles to name "
@@ -91,10 +99,15 @@ def label_points(ax, xs, ys, names, priority_idx=None, width=26, fontsize=8,
 
     `priority_idx` (the volume/breadth or axis leaders) is placed first and
     always kept; every other point is added only if its real, measured text
-    box clears every label already placed. Measuring the rendered box (rather
-    than guessing a data-space radius) is what keeps long department names in
-    a tight cluster from stacking on top of one another. Deterministic: the
-    same data always yields the same labels, so figures rebuild identically.
+    box clears every label already placed. Measuring the rendered box
+    (rather than guessing a data-space radius) is what keeps long
+    department names in a tight cluster from stacking on top of one
+    another. Deterministic: the same data always yields the same labels, so
+    figures rebuild identically.
+
+    A label that will not fit is *moved* (right, left, above, below) before
+    it is given up on — dropping a leader because its neighbour was placed
+    first would make the figure's own rule self-defeating.
     """
     n = len(xs)
     if not n:
@@ -102,20 +115,38 @@ def label_points(ax, xs, ys, names, priority_idx=None, width=26, fontsize=8,
     fig = ax.figure
     fig.canvas.draw()                       # realise transforms before measuring
     renderer = fig.canvas.get_renderer()
+    plot_area = ax.get_window_extent(renderer=renderer)
+    # marker centres in display space: a label must not be printed on top of
+    # another mark, which is how a dense cluster turns into unreadable text
+    centres = ax.transData.transform(np.column_stack([xs, ys]))
     boxes, kept = [], []
     for i in dict.fromkeys(list(priority_idx or []) + list(range(n))):
-        ann = ax.annotate(f"{shorten(names[i], width=width, placeholder='…')} "
-                          f"({xs[i]:g}, {ys[i]:g})",
-                          (xs[i], ys[i]), fontsize=fontsize, color=GRAY70,
-                          xytext=(8, 4), textcoords="offset points", zorder=6)
-        bb = ann.get_window_extent(renderer=renderer)
-        box = Bbox.from_extents(bb.x0 - pad_px, bb.y0 - pad_px,
-                                bb.x1 + pad_px, bb.y1 + pad_px)
-        if any(box.overlaps(other) for other in boxes):
+        txt = f"{shorten(names[i], width=width, placeholder='…')} " \
+              f"({xs[i]:g}, {ys[i]:g})"
+        for dx, dy, ha in LABEL_OFFSETS:
+            ann = ax.annotate(txt, (xs[i], ys[i]), fontsize=fontsize, color=GRAY70,
+                              xytext=(dx, dy), textcoords="offset points",
+                              ha=ha, va="center", zorder=6)
+            bb = ann.get_window_extent(renderer=renderer)
+            box = Bbox.from_extents(bb.x0 - pad_px, bb.y0 - pad_px,
+                                    bb.x1 + pad_px, bb.y1 + pad_px)
+            # a label that runs past the plot edge lands on the axis labels
+            # or in the figure margin, so treat "outside" like "overlaps"
+            inside = (box.x0 >= plot_area.x0 and box.x1 <= plot_area.x1
+                      and box.y0 >= plot_area.y0 and box.y1 <= plot_area.y1)
+            covers_mark = any(
+                j != i and box.x0 - MARKER_CLEARANCE_PX <= cx <= box.x1 + MARKER_CLEARANCE_PX
+                and box.y0 - MARKER_CLEARANCE_PX <= cy <= box.y1 + MARKER_CLEARANCE_PX
+                for j, (cx, cy) in enumerate(centres))
+            clash = next((b for b in boxes if box.overlaps(b["box"])), None)
+            if inside and clash is None and not covers_mark:
+                boxes.append({"box": box, "text": txt})
+                kept.append(i)
+                break
             ann.remove()
         else:
-            boxes.append(box)
-            kept.append(i)
+            if os.environ.get("CHART_LABEL_DEBUG"):
+                print(f"  [label dropped] {txt!r}: no clear placement")
     return len(kept)
 
 
@@ -476,9 +507,10 @@ def main():
                  f"{len(xs)} departments", fontsize=13, color=NAVY, pad=12)
     save(fig, "10-assurance-evasion", "Response signals", "Pillar 2",
          "Bubble size = coded replies. Labels: assurance and evasion extremes "
-         f"first, then every department whose label fits without collision "
-         f"({n_lab} of {n_pts} labelled). Ported signal registries; weights, "
-         "not scores.")
+         f"first, then every department whose label fits clear of both the "
+         f"other labels and the marks ({n_lab} of {n_pts} labelled; the "
+         "remaining departments sit inside one dense cluster). "
+         "Ported signal registries; weights, not scores.")
 
     # ── 11. Reply coverage by session ──
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -582,14 +614,24 @@ def main():
     # ── 15. MLA activity bubble ──
     mlas = stats["mlas"]
     n_points = len(mlas)
-    fig, ax = plt.subplots(figsize=(11, 7.5))
+    fig, ax = plt.subplots(figsize=(12, 7.5))
     xs = [m["questions"] for m in mlas]
     ys = [m["departments"] for m in mlas]
     ax.scatter(xs, ys, s=[10 + 12 * q for q in xs], color=TEAL, alpha=0.6, edgecolors="white")
     # Bubbles are sized by volume, so the volume and breadth leaders are named
     # first; every other bubble is named only when its label fits without
     # colliding - a fixed, rebuild-stable rule.
-    n_points = len(mlas)
+    #
+    # Labels identify *people*: 13 members share the surname Sangma and 8
+    # share Lyngdoh, so a surname alone names a family, not a legislator.
+    # member_labels() gives the shortest form that identifies one member —
+    # judged against every asker in the WHOLE corpus, not the in-scope
+    # subset plotted here and not just the 20 bubbles: a member who asked no
+    # question after 2021, or fell outside the top 20, still makes
+    # "Nongrum" the name of two people.
+    all_askers = {str(r.get("Asked_By") or "").strip()
+                  for r in load_rows(str(REPO / "data/dl_questions_raw.csv"))}
+    asker_labels = member_labels(all_askers)
     by_x = sorted(range(n_points), key=lambda i: xs[i])
     by_y = sorted(range(n_points), key=lambda i: ys[i])
     priority = by_x[-EXTREME_LABELS:] + by_y[-3:]
@@ -598,8 +640,8 @@ def main():
     ax.set_ylim(min(ys) - 0.07 * ((max(ys) - min(ys)) or 1),
                 max(ys) + 0.10 * ((max(ys) - min(ys)) or 1))
     n_lab = label_points(ax, xs, ys,
-                         [f"{m['mla'].split()[-1]}" for m in mlas],
-                         priority_idx=priority, width=18)
+                         [asker_labels.get(m["mla"], m["mla"]) for m in mlas],
+                         priority_idx=priority, width=22)
     style(ax, xlabel="Questions asked", ylabel="Departments questioned (breadth)")
     top_m = mlas[0]
     ax.set_title(f"{top_m['mla']} asks the most ({top_m['questions']}) with the "
@@ -609,8 +651,11 @@ def main():
     save(fig, "15-mla-bubble", "Asker activity", "Pillar 1",
          f"Each bubble = one of the {n_points} most active members; size = "
          "questions. Labels: the 5 most active and 3 broadest first, then "
-         f"every other bubble whose label fits without collision ({n_lab} "
-         "labelled). Source: stats.json.")
+         f"every other bubble whose label fits clear of both the other labels "
+         f"and the marks ({n_lab} labelled). Members are named by the shortest "
+         "form that identifies one of them: "
+         f"{len(shared_surnames(asker_labels))} surnames are carried by more "
+         "than one member. Source: stats.json.")
 
     # ── 16. Theme × department heatmap ──
     tbd = layers["layer1_themes"]["department_by_theme"]
@@ -694,8 +739,8 @@ def main():
          "Single-year budget vs multi-year questions (limitation noted); "
          f"per-100-crore table in the dashboard. Labels: budget and "
          f"questioning leaders first, then every department whose label fits "
-         f"without collision ({n_lab} of {n_pts} labelled). "
-         "Sources: DEPT_BUDGET, CSV.")
+         f"clear of both the other labels and the marks ({n_lab} of {n_pts} "
+         "labelled). Sources: DEPT_BUDGET, CSV.")
 
     # ── 19. Opposition intensity by session ──
     bbs = layers["layer3_demands"]["bloc_by_session"]

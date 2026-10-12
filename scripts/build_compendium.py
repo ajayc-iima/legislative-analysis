@@ -440,6 +440,14 @@ def build():
         "carry provenance flags, not silent defaults")
     add("- Exact-match recurrence under-merges paraphrases (documented choice)")
     add("- MLA-based geography assumes questions concern the asker's own seat")
+    add("- Seat lookup is not assembly-aware: where two members held the same "
+        "seat in different Assemblies (or are recorded under one seat in the "
+        "reference table), both resolve to that seat. Every figure here cuts "
+        "geography at district or region level, where both members sit in the "
+        "same district, so no district or region count is affected; only the "
+        "`constituency_specific` scope sub-count can be overstated, by at most "
+        "the questions asked by the 12 members involved (18 of 298 in the "
+        "current build). Resolving it needs per-Assembly seat records")
     add("- Layer 4 coverage grows as extraction completes; regenerate this "
         "document with `python build_compendium.py` afterwards")
     add("")

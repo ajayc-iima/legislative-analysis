@@ -79,6 +79,8 @@ validator):
   number in prose and tables is computed from source data at build time
 - no overlapping labels in any chart (`scripts/dev/audit_labels.py`:
   21/21 charts pass; rotated labels compared as oriented rectangles)
+- no ambiguous member name in any output (`scripts/dev/audit_names.py`:
+  25 files pass; no shared surname appears without a given name)
 
 Carried-forward trade-offs: no choropleth (documented); coverage-band
 alarm colors kept with % on every bar plus a band legend; extraction
@@ -104,7 +106,7 @@ name 8 of 20 members by rank order while 12 bubbles sat unlabelled.
 | Heatmap cell | Label **every** non-zero cell; zero cells stay empty | 02, 16 |
 | Stacked column segment | Label every segment **>= 8%** of its column; the rest are left to the axis | 06, 09, 14, 19, 20 |
 | Histogram bin | Label every bin **>= 10%** of the tallest bin; the thin tail is read off the axis | 21 |
-| Scatter / bubble | Leaders on each axis first, then **every** remaining point whose measured label box clears all others; how many were placed is printed in the caption | 10, 15, 18 |
+| Scatter / bubble | Leaders on each axis first, then **every** remaining point whose label clears both the other labels and the marks; a label that will not fit is moved (right, left, above, below) before it is given up on, and how many were placed is printed in the caption | 10, 15, 18 |
 
 Two supporting rules keep labels legible: label ink is chosen by measured
 WCAG contrast against the real fill (never an "is this dark?" guess), and
@@ -119,3 +121,41 @@ overlapping pair. Rotated labels are compared as oriented rectangles via
 the separating axis theorem, because axis-aligned boxes would report
 every 45-degree tick label as a collision with its own neighbour.
 Current build: **21 charts, 0 overlapping pairs**.
+
+---
+
+## G. Naming rule — a label must identify one person
+
+Eight surnames in this Assembly belong to more than one member: **13 of
+the 63 askers are "… Sangma"** and 8 are "… Lyngdoh". Figure 8 labelled
+its bubbles by surname, so two bubbles read "Sangma" with nothing to tell
+them apart — a figure about *who* asks the most that cannot say who.
+
+The analysis itself was never wrong: members are keyed by full name
+throughout (`normalize_mla`), and each name resolves to exactly one seat —
+verified corpus-wide (0 names mapped to two seats, 0 askers unmatched). The
+defect was confined to display.
+
+`legislative_analysis.naming.member_labels()` now supplies the shortest
+label that still identifies one member — surname alone when unique
+("Kharpran"), given name plus surname when shared ("Mukul Sangma",
+"Zenith Sangma"), full name only if the two-token form would still
+collide. Two properties matter:
+
+- **Judged corpus-wide, not figure-wide.** A member outside the plotted
+  top 20, or one who asked nothing after 2021, still makes a surname
+  ambiguous. Deriving labels from the in-scope subset printed a bare
+  "Nongrum" while a second Nongrum existed in the corpus.
+- **Checked on the built output.** `scripts/dev/audit_names.py` reads the
+  report, dashboard, every chart SVG and the briefs, and fails if any
+  surname shared by two members appears without a given name in front of
+  it. Current build: 25 files, 0 bare surname uses.
+
+The same survey checked the two failure modes that would have corrupted
+*counts* rather than labels: one member recorded under several spellings
+(7 trailing-comma variants, all folded by `normalize_mla` — none counted
+twice) and two members merged into one identity (none). A related limit
+is documented in the compendium rather than silently patched: seat lookup
+is not assembly-aware, which can overstate the `constituency_specific`
+scope sub-count by at most 18 of 298 questions, and never a district or
+region figure.
