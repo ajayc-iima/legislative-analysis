@@ -46,6 +46,7 @@ from legislative_analysis import analysis as base  # noqa: E402
 from legislative_analysis.analysis import load as load_rows, parse_date  # noqa: E402
 from legislative_analysis.codebook import normalize_dept  # noqa: E402
 from legislative_analysis.naming import member_labels, shared_surnames  # noqa: E402
+from legislative_analysis.recurrence import load as load_recurrence  # noqa: E402
 from legislative_analysis import longitudinal as longi  # noqa: E402
 from build_compendium import compute_layer4, load_extracted  # noqa: E402
 
@@ -229,6 +230,10 @@ def main():
     for name in ("layer1_themes", "layer2_geography", "layer3_demands",
                  "layer5_resolution", "layer6_trends"):
         layers[name] = json.loads((REPO / "output/layers" / f"{name}.json").read_text(encoding="utf-8"))
+    # Recurrence is published from whichever method is available, semantic
+    # preferred, and every figure that uses it says which one it used.
+    recurrence = load_recurrence()
+    layers["recurrence"] = recurrence
     rows = base.scope_rows(load_rows(str(REPO / "data/dl_questions_raw.csv")))
     total = len(rows)
     order = longi.session_order_of(rows)

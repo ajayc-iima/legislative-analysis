@@ -983,6 +983,32 @@ def main():
     n_fam = resolution["n_families"]
     n_stalled = res_counts.get("stalled", 0)
     n_resolved = res_counts.get("resolved", 0)
+
+    # Semantic supplement (optional). Layer 5 above is the deterministic
+    # exact-match result and every headline number uses it, because it
+    # rebuilds without a network connection or an API key. The semantic
+    # grouping is reported beside it, never instead of it: it recovers
+    # paraphrases string equality cannot see, and a reader can check every
+    # merge against the provenance kept with it.
+    semantic_path = LAYERS / "layer5_semantic.json"
+    semantic = (json.loads(semantic_path.read_text(encoding="utf-8"))
+                if semantic_path.exists() else None)
+    comparison_path = LAYERS / "subject_method_comparison.json"
+    comparison = (json.loads(comparison_path.read_text(encoding="utf-8"))
+                  if comparison_path.exists() else None)
+    if semantic:
+        sem_counts = semantic["resolution_counts"]
+        sem_fam = semantic["n_families"]
+        sem_stalled = sem_counts.get("stalled", 0)
+        sem_stalled_pct = pct(sem_stalled, sem_fam)
+        sem_dept_families = Counter(
+            (f.get("departments") or ["—"])[0] for f in semantic["families"].values())
+    else:
+        sem_counts, sem_fam, sem_stalled, sem_stalled_pct = {}, 0, 0, 0.0
+        sem_dept_families = Counter()
+    stalled_pct = pct(n_stalled, n_fam)
+    exact_dept_families = Counter(
+        (f.get("departments") or ["—"])[0] for f in resolution["families"].values())
     det_pct = det_share
     n_contradiction = sum(1 for x in records if x["contradiction"]["has_contradiction"])
     n_sessions = len(stats.get("sessions", []))
@@ -1213,7 +1239,7 @@ def main():
         ["Layer 2: Geographic Tagging", "What is the territorial footprint of scrutiny?", "Two-stream resolution: Asker constituency-to-district mapping (60 seats) plus in-text gazetteer entity scanning.", "layer2_geography.json"],
         ["Layer 3: Demands & Blocs", "What do questions demand, and who asks them?", "Structural classification (Information, Action, Explanation, Accountability); member party-to-bloc alignment.", "layer3_demands.json"],
         ["Layer 4: Response Quality Rubric", "What is the substantive quality of replies?", "Multi-vector text coding: length bands, data-point census, evasion/assurance registries, contradiction regex, execution stages.", "stats.json + compute_layer4"],
-        ["Layer 5: Longitudinal Recurrence", "Which problems persist over time?", "Exact normalized subject matching across ≥2 sessions; 5-point trajectory classification (stalled, resolved, progressing, mixed, regressed).", "layer5_resolution.json"],
+        ["Layer 5: Longitudinal Recurrence", "Which problems persist over time?", "Default: exact normalised subject matching across ≥2 sessions; 5-point trajectory classification (stalled, resolved, progressing, mixed, regressed). Supplement: dense semantic embeddings with locality, named-scheme and specificity gates plus model verification; both counts published side by side (§5.1).", "layer5_resolution.json + layer5_semantic.json"],
         ["Layer 6: Trends & Watchlist", "What issues are rising or emerging?", "Ordinary Least Squares (OLS) per-session question slopes; emerging issues watchlist (first seen in last 3 sessions, ≥2 askers).", "layer6_trends.json"]
     ]
     add(table(["Layer", "Analytical Purpose", "Algorithmic Methodology", "Primary Output Artifact"], layers_table_rows,
@@ -1508,9 +1534,13 @@ def main():
     # --- Section 5: Pillar 3 ---
     add("<div class='section-arc'>Empirical Findings · Pillar 3</div>")
     add("<h2 class='section-heading' id='sec-pillar3'>5. Persistent Governance Challenges and The Accountability Trap</h2>")
-    add("<p>What happens when an issue is asked repeatedly across multiple legislative sessions? Does repeated legislative interrogation force bureaucratic "
-        "learning and institutional resolution, or does the executive develop immunity to scrutiny? "
-        "To test Hypothesis H5, Layer 5 tracked 66 recurring subject families raised across two or more sessions (Figure 12 and Figure 13).</p>")
+    add(f"<p>What happens when an issue is asked repeatedly across multiple legislative sessions? Does repeated legislative interrogation force bureaucratic "
+        f"learning and institutional resolution, or does the executive develop immunity to scrutiny? "
+        f"To test Hypothesis H5, Layer 5 tracked <b>{n_fam} recurring subject families</b> raised across two or more sessions "
+        f"(Figure 12 and Figure 13). These are counted by exact match on the normalised subject string — the "
+        f"deterministic default, which rebuilds without a network connection or an API key. "
+        f"A semantic grouping that recovers paraphrases is reported alongside it in §5.1; the two are compared "
+        f"rather than one being quietly substituted for the other.</p>")
     add(figs("12-resolution", "13-emerging"))
 
     res_summary_rows = [
@@ -1521,13 +1551,72 @@ def main():
         ["Regressed (Backward Movement)", f"{res_counts.get('regressed', 0)}", f"{pct(res_counts.get('regressed', 0), sum(res_counts.values()))}%", "Prior commitments revoked, contracts cancelled, or timelines abandoned."]
     ]
     add(table(["Trajectory Classification", "Subject Families", "Share (%)", "Empirical Definition"], res_summary_rows,
-              caption="Table 5.1: Longitudinal Trajectories of Recurring Subject Families (≥2 Sessions). Source: layer5_resolution.json."))
+              caption="Table 5.1: Longitudinal Trajectories of Recurring Subject Families (≥2 Sessions), counted by exact match. Source: layer5_resolution.json."))
 
-    add(f"<p>The empirical finding is sobering: <b>62.1% of all recurring issues ({n_stalled} of {n_fam}) are stalled</b>. "
-        "Far from compelling institutional learning, repeated questioning in the Meghalaya Legislative Assembly reveals an <b>Accountability Trap</b>: "
-        "departments become adept at returning recycled, formulaic replies session after session with zero progress in real-world delivery.</p>")
+    add(f"<p>On the deterministic count, <b>{pct(n_stalled, sum(res_counts.values()))}% of recurring issues "
+        f"({n_stalled} of {n_fam}) are stalled</b>. Far from compelling institutional learning, repeated questioning in the Meghalaya Legislative Assembly "
+        f"reveals an <b>Accountability Trap</b>: departments become adept at returning recycled, formulaic replies session after session with no progress in "
+        f"real-world delivery. The semantic count below points the same way, so the finding does not depend on which matching method is used.</p>")
 
-    add("<h3 class='subsection-heading'>5.1 In-Depth Qualitative Case Studies</h3>")
+    add("<h3 class='subsection-heading'>5.1 Two Ways of Matching a Repeated Subject — and Why Both Are Reported</h3>")
+    add("<p>Identifying a subject that returns in a later sitting requires matching this sitting's wording to the last one. Legislators rephrase: "
+        "<i>'Sanction for the Upgradation of Tura Civil Hospital'</i> in one session becomes <i>'Status of the Civil Hospital Upgradation Project, Tura'</i> "
+        "in the next. Exact match treats those as two different subjects, so it understates recurrence. A semantic grouping recovers them, but can also merge "
+        "two things that merely read alike. Neither is right on its own, so both are computed, both are published, and the difference is shown.</p>")
+    if semantic and comparison:
+        rows_cmp = [
+            ["How a question is matched", "String equality after normalisation",
+             f"Dense embeddings ({esc(semantic['embed_model'])}, "
+             f"{semantic['embed_dims']} dimensions) plus verification gates"],
+            ["Recurring families found", f"{n_fam}", f"{sem_fam}"],
+            ["Stalled share", f"{pct(n_stalled, sum(res_counts.values()))}% "
+             f"({n_stalled} of {n_fam})",
+             f"{pct(sem_stalled, sum(sem_counts.values()))}% "
+             f"({sem_stalled} of {sem_fam})"],
+            ["Families that absorbed a paraphrase",
+             "—", f"{comparison['summary']['families_that_absorbed_paraphrases']}"],
+            ["Largest set of phrasings in one family",
+             "—", f"{comparison['summary']['max_variants_in_one_family']}"],
+            ["Pairs referred to a human", "—", f"{semantic.get('n_unresolved', 0)}"],
+            ["Needs a network connection to rebuild", "No",
+             f"Yes ({esc(semantic['gate_model'])})"],
+        ]
+        add(table(["", "Exact match (reported throughout)", "Semantic grouping (supplement)"],
+                  rows_cmp,
+                  caption=f"Table 5.2: The two matching methods on the same corpus. "
+                          f"Semantic parameters: candidate at cosine ≥ "
+                          f"{semantic['sim_threshold']}, similarity-only merge at ≥ 0.95, "
+                          f"{semantic.get('n_subjects_embedded', 0):,} subjects embedded. "
+                          f"Sources: layer5_resolution.json, layer5_semantic.json."))
+        dept_rows = []
+        for dept in sorted(set(exact_dept_families) | set(sem_dept_families)):
+            ex_n, se_n = exact_dept_families.get(dept, 0), sem_dept_families.get(dept, 0)
+            if ex_n or se_n:
+                dept_rows.append([dept, ex_n, se_n,
+                                  ("+" if se_n > ex_n else "") + str(se_n - ex_n)])
+        dept_rows.sort(key=lambda r: -(r[2] - r[1]))
+        add(table(["Department", "Exact-match families", "Semantic families", "Change"],
+                  dept_rows[:20],
+                  caption="Table 5.3: Where the two methods differ. Exact match returns few families for "
+                          "departments whose members rephrase; the semantic pass recovers them. Full per-department "
+                          "figures and worked examples: data/review/subject_method_comparison.md."))
+        add(f"<p>The two counts are not ranked against each other. Exact matching is the one used for every other "
+            f"figure in this report, because it needs no model and no network. The semantic pass is offered as a "
+            f"reproducible supplement: its parameters, its provenance and its failure cases are all published, "
+            f"including the pairs it could not decide and referred to a human ({semantic.get('n_unresolved', 0)}).</p>")
+    add("<div class='callout-theory'><b>The gates that decide a merge</b><br>"
+        "Five checks run in order, cheapest first, and any of them can stop a merge:<br>"
+        "<b>1. Portfolio isolation.</b> Questions are only ever matched inside one department; no merge crosses a department boundary.<br>"
+        "<b>2. Locality guard.</b> Conflicting districts or towns block a merge outright — East Jaintia is never folded into West Jaintia. District names are matched longest-first, so 'West Khasi Hills' inside 'South West Khasi Hills' cannot be misread.<br>"
+        "<b>3. Named-scheme guard.</b> Two different named programmes are never merged, however similar the sentence around them: a Primary Health Centre and a Community Health Centre share a head noun, which is exactly why a similarity model alone would confuse them.<br>"
+        "<b>4. Specificity requirement.</b> A merge needs at least one shared <i>specific</i> word. Sharing only generic ones ('health', 'centre') is not evidence of a shared subject, and a subject naming two programmes is attached to both families instead of bridging them.<br>"
+        "<b>5. Verification and provenance.</b> Borderline pairs are put to <code>"
+        + esc(str(semantic.get("gate_model", "verification model"))) +
+        "</code>; a pair that no gate can decide is <i>not</i> merged — it is written to "
+        "<code>data/review/semantic_adjudication.csv</code> for a person. Every cluster keeps the variants it "
+        "merged, the NeVA question numbers behind it, and the reason for each decision.</div>")
+
+    add("<h3 class='subsection-heading'>5.2 In-Depth Qualitative Case Studies</h3>")
 
     # Case A: New Shillong Township
     add("<div class='callout-alert'><b>Case Study A: New Shillong Township — Five Sessions of Administrative Inertia</b><br>"
@@ -1571,13 +1660,13 @@ def main():
         "with 52 sanctioned posts each. In JJM, scrutiny forced the department to report verified household tap connections climbing from 83,000 in 2021 to 5,47,670 by August 2026. "
         "Resolution occurs when legislative demands align with high-visibility, centrally audited quantitative targets where civil servants cannot hide behind vague prose.</div>")
 
-    add("<h3 class='subsection-heading'>5.2 The Emerging Issues Watchlist</h3>")
+    add("<h3 class='subsection-heading'>5.3 The Emerging Issues Watchlist</h3>")
     add("<p>By analyzing issues appearing for the first time in the three most recent sessions (Eleventh Autumn 2025, Eleventh Budget 2026, Eleventh Autumn 2026) "
         "with multiple independent askers, Layer 6 isolates the emerging governance challenges that will dominate future legislative sittings:</p>")
 
     emerging_table_rows = [
         [e["subject"], e["first_session"], str(e["occurrences"]), str(len(e["askers"])),
-         ", ".join(e["departments"]), "High-priority emerging governance flashpoint."]
+         ", ".join(e.get("departments") or ([e["department"]] if e.get("department") else [])), "High-priority emerging governance flashpoint."]
         for e in emerging
     ]
     add(table(["Emerging Governance Subject", "First Detected", "Sittings", "Members Raising", "Department Responsible", "Strategic Threat"], emerging_table_rows,
@@ -1700,7 +1789,7 @@ def main():
     add(details(f"Complete Roster of All {n_fam} Recurring Subject Families",
                 table(["Subject Title", "Sitting Occurrences", "Sessions Spanned", "Responsible Departments", "Observed Trajectory"],
                       all_fam_rows, filterable=True, table_id="tbl-all-families-appendix",
-                      caption="Appendix Table A.4: Complete Directory of All 66 Recurring Legislative Subjects. Source: layer5_resolution.json.")))
+                      caption=f"Appendix Table A.4: Complete Directory of All {n_fam} Recurring Legislative Subjects. Source: layer5_resolution.json.")))
 
     # Methodology & Codebook
     add("<h3 class='subsection-heading'>8.1 Reproducibility Pipeline</h3>")

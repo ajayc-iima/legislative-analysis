@@ -138,7 +138,15 @@ def main():
         "bloc_by_session": bloc_by_session,
         "bloc_demand_mix": bloc_demand_mix,
     })
+    # Layer 5 is the deterministic exact-match result and stays the default
+    # everywhere downstream. A previous pass stamped this file
+    # "semantic_embedding_multi_gate" while still writing exact-match
+    # families: the artifact claimed a method the data did not use. The
+    # semantic result now lives in its own file (layer5_semantic.json) and is
+    # compared against this one by compare_subject_methods.py, so both
+    # results survive and the difference is visible.
     dump("layer5_resolution.json", {
+        "methodology": "exact_normalized_subject_match",
         "n_families": len(families),
         "resolution_counts": resolution,
         "families": families,
@@ -259,9 +267,10 @@ def _report(rows, theme_counts, region_counts, scope_counts, demand_counts,
 
     lines += ["", f"### Emerging issues watchlist ({len(emerging)})", ""]
     for e in emerging[:15]:
+        depts = e.get('departments') or ([e['department']] if e.get('department') else [])
         lines.append(f"- **{e['subject']}** — first {e['first_session']}, "
                      f"{e['occurrences']} occurrences, {len(e['askers'])} askers, "
-                     f"{', '.join(e['departments'][:2])}")
+                     f"{', '.join(depts[:2])}")
 
     lines += ["", "## New vs recurring per session", "",
               "| Session | Questions | Recurring | New | Recurring % |",

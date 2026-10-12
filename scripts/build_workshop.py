@@ -53,6 +53,7 @@ from legislative_analysis.codebook import classify_all, normalize_dept, DEPT_THE
 from legislative_analysis.demand import classify_all as classify_demand_all  # noqa: E402
 from legislative_analysis.geography import tag_all, party_of, bloc_of, lookup_mla  # noqa: E402
 from legislative_analysis import reference_data as ref_data      # noqa: E402
+from legislative_analysis import recurrence                      # noqa: E402
 from legislative_analysis.naming import member_labels           # noqa: E402
 from build_compendium import compute_layer4, load_extracted, pct  # noqa: E402
 from build_report import (build_css, build_js, details, esc, exhibit_card,  # noqa: E402
@@ -115,7 +116,9 @@ def flagged_by_department() -> dict[str, list[dict]]:
 # ───────────────────────────── per-department profile ────────────────────────
 
 def profile(dept: str, rows, extracted, dept_summary, records, labels, order,
-            flagged, overall) -> dict:
+            flagged, overall, sem: dict | None = None,
+            sem_clusters: list | None = None,
+            gate_counts: Counter | None = None) -> dict:
     mine = [r for r in rows if normalize_dept(r.get("Departments")) == dept]
     n = len(mine)
     sessions = []
@@ -165,7 +168,62 @@ def profile(dept: str, rows, extracted, dept_summary, records, labels, order,
                 if sk in recent_sessions and subjects[s] >= 2
                 and len(askers_of_subject[s]) >= 2]
 
+    # --- semantic grouping: the primary lists; exact match stays beside it --
+    # Embeddings (nvidia/nemotron-3-embed-1b) put reworded subjects together;
+    # the gates in semantic_subjects.py stop unrelated ones from merging.
+    # Exact match above remains in `recurring_exact`/`emerging_exact` as the
+    # reproducible floor, published alongside — never instead of — this.
+    sem_recurring, sem_emerging = [], []
+    rows_by_link = {str(r.get("Document_Link") or ""): r for r in rows}
+    clu_index = {c.get("canonical_subject"): c for c in (sem_clusters or [])
+                 if c.get("department") == dept}
+
+    def demand_mix(subject: str) -> str:
+        """Information/Action/Explanation/Accountability mix of a family's
+        questions, from the cluster's own question links — the tone dimension
+        that identical wording alone does not show."""
+        c = clu_index.get(subject)
+        if not c:
+            return "—"
+        mix = Counter()
+        for qm in c.get("questions_meta", []):
+            r = rows_by_link.get(str(qm.get("document_link") or ""))
+            if r is not None:
+                mix[r.get("_demand_type") or "Information"] += 1
+        if not mix:
+            return "—"
+        dom = ["Information", "Action", "Explanation", "Accountability"]
+        return " · ".join(f"{k[:3]} {mix[k]}" for k in dom if mix[k])
+
+    if sem:
+        for f in (sem.get("families") or {}).values():
+            if dept not in (f.get("departments") or []):
+                continue
+            sem_recurring.append({
+                "subject": f.get("subject", ""),
+                "sessions": len(f.get("sessions") or []),
+                "questions": int(f.get("occurrences") or 0),
+                "variants": len(f.get("unique_subjects") or []),
+                "trajectory": f.get("trajectory", "—"),
+                "demand_mix": demand_mix(f.get("subject", "")),
+            })
+        sem_recurring.sort(key=lambda x: (-x["sessions"], -x["questions"]))
+        for e in (sem.get("emerging_issues") or []):
+            if e.get("department") != dept:
+                continue
+            sem_emerging.append({
+                "subject": e.get("subject", ""),
+                "questions": int(e.get("occurrences") or 0),
+                "askers": len(e.get("askers") or []),
+                "first": e.get("first_session", "—"),
+                "variants": len(e.get("unique_subjects") or []),
+                "demand_mix": demand_mix(e.get("subject", "")),
+            })
+        sem_emerging.sort(key=lambda x: -x["questions"])
+
     d_records = [x for x in records if x["department"] == dept]
+    recurring_sorted = sorted(recurring, key=lambda r: -r["sessions"])
+    emerging_sorted = sorted(emerging, key=lambda r: -r["questions"])
     reply_rows = []
     for r in mine:
         pdf = str(r.get("Document_Link") or "").rsplit("/", 1)[-1]
@@ -196,10 +254,16 @@ def profile(dept: str, rows, extracted, dept_summary, records, labels, order,
         "askers": askers, "n_askers": len(askers),
         "themes": themes, "demands": demands,
         "portfolio_theme": portfolio, "off_portfolio": off_portfolio,
-        "subjects": subjects, "recurring": sorted(recurring, key=lambda r: -r["sessions"]),
+        "subjects": subjects, "recurring": sem_recurring or recurring_sorted,
+        "recurring_exact": recurring_sorted,
+        "recurring_sem": sem_recurring,
         "subject_rows": [{"subject": _readable(original.get(s, s)), "questions": c}
                          for s, c in subjects.most_common()],
-        "emerging": sorted(emerging, key=lambda r: -r["questions"]),
+        "emerging": sem_emerging or emerging_sorted,
+        "emerging_exact": emerging_sorted,
+        "emerging_sem": sem_emerging,
+        "sem_used": bool(sem_recurring or sem_emerging) and bool(sem),
+        "gate_counts": gate_counts or Counter(),
         "records": d_records, "reply_rows": reply_rows,
         "n_replies_text": len(replies_with_text),
         "reply_coverage": pct(len(replies_with_text), n),
@@ -580,8 +644,14 @@ def scorecard(d: dict, corpus: dict) -> str:
         ["Staged replies with progress evidence",
          f"{d['progress_evidence_pct']:.0f}%" if d["n_staged"] else "—",
          f"of {d['n_staged']:,} replies that evidence any stage"],
-        ["Recurring subjects (asked in 2+ sittings)", f"{len(d['recurring'])}",
-         f"of {len(d['subjects']):,} distinct subjects"],
+        ["Recurring subjects (asked in 2+ sittings)",
+         f"{len(d['recurring_sem'])}" if d.get("recurring_sem") is not None
+         else f"{len(d['recurring_exact'])}",
+         (f"semantic grouping with verification gates; exact match finds "
+          f"{len(d['recurring_exact'])} of {len(d['subjects']):,} distinct "
+          f"subject strings")
+         if d.get("recurring_sem") is not None
+         else f"of {len(d['subjects']):,} distinct subject strings"],
         ["Budget allocation 2025–26",
          f"₹{d['budget']:,.0f} crore" if d["budget"] else "—",
          f"{d['rate']:.1f} questions per ₹100 crore" if d["rate"] else "not in table"],
@@ -709,12 +779,12 @@ def exercises(d: dict) -> str:
          f"{d['n_coded']:,} coded replies and a budget figure in "
          f"{d['budget_pct']:.0f}% — these five fields are what turn a reply into a "
          f"trackable commitment."),
-        (f"<b>Account for the {len(d['recurring'])} recurring subjects.</b> Each was "
+        (f"<b>Account for the {len(d['recurring_sem'])} recurring subjects.</b> Each was "
          f"asked in two or more sittings. For each, state what changed between the "
          f"first and the latest reply, and whether the change is documented or "
          f"asserted. Recurrence without documented progress is the pattern this "
          f"analysis is built to expose."),
-        (f"<b>Explain the {len(d['emerging'])} emerging subjects.</b> These appear "
+        (f"<b>Explain the {len(d['emerging_sem'])} emerging subjects.</b> These appear "
          f"only in the last three sittings, in at least two questions and from at "
          f"least two members. Which are new problems, and which are old problems "
          f"asked in new words?"),
@@ -743,7 +813,10 @@ def limitations(d: dict) -> str:
          "dossier compares levels, not trends."),
         ("Question text is the portal's own text; subjects are matched by "
          "normalised exact match, so a paraphrase is not recognised as the same "
-         "subject. Recurrence is therefore a floor, not a ceiling."),
+         "subject. Recurrence is therefore a floor, not a ceiling. The semantic "
+         "grouping in this pack (NVIDIA nemotron-3-embed-1b with 5 verification gates) "
+         "recovers paraphrased subjects that exact matching cannot see; both counts "
+         "are published side by side so the reader can assess the gap."),
         ("Replies are OCR-extracted from scanned PDFs. Records flagged as needing "
          "human review are excluded from coded statistics but remain visible in "
          "the denominators shown here."),
@@ -792,12 +865,53 @@ def chapter(d: dict, idx: int, corpus: dict, corpus_median) -> str:
     part.append(subjects_table(
         d, "Most frequent subjects (exact match, wording as the archive records it)",
         d["subject_rows"], "questions"))
-    part.append(subjects_table(
-        d, f"Recurring subjects — asked in two or more sittings ({len(d['recurring'])})",
-        d["recurring"], "sessions"))
-    part.append(subjects_table(
-        d, f"Emerging subjects — first seen in the last three sittings "
-           f"({len(d['emerging'])})", d["emerging"], "questions"))
+
+    # --- Recurring subjects -------------------------------------------------
+    # Three cases, each labelled with the method that produced the count:
+    # semantic families exist; semantic layer ran but found none here
+    # (exact list shown, labelled); no semantic layer at all.
+    if d.get("recurring_sem"):
+        part.append(subjects_table(
+            d, f"Recurring subjects — asked in two or more sittings "
+               f"({len(d['recurring_sem'])} families, semantic grouping)",
+            d["recurring_sem"][:15], "sessions"))
+        part.append(f"<p>For comparison: exact string matching alone finds "
+                    f"{len(d['recurring_exact'])} of these. The gap is the "
+                    f"paraphrase effect — the same issue reworded across "
+                    f"sittings, which embeddings group and the gates verify. "
+                    f"Every merge is listed with its evidence in "
+                    f"<code>output/layers/semantic_clusters.json</code>.</p>")
+    else:
+        tag = ", exact match" if d.get("recurring_sem") is not None else ""
+        part.append(subjects_table(
+            d, f"Recurring subjects — asked in two or more sittings "
+               f"({len(d['recurring_exact'])}{tag})",
+            d["recurring_exact"], "sessions"))
+        if d.get("recurring_sem") is not None:
+            part.append("<p>The semantic grouping found no family with two or "
+                        "more sittings in this department; the list above is "
+                        "the exact-match result.</p>")
+
+    # --- Emerging subjects ---------------------------------------------------
+    if d.get("emerging_sem"):
+        part.append(subjects_table(
+            d, f"Emerging subjects — first seen in the last three sittings "
+               f"({len(d['emerging_sem'])}, semantic grouping)",
+            d["emerging_sem"][:15], "questions"))
+        part.append(f"<p>For comparison: exact string matching alone finds "
+                    f"{len(d['emerging_exact'])} — a new-looking subject string "
+                    f"is often a rewording of an issue the record already "
+                    f"contains, which is why the two methods disagree.</p>")
+    else:
+        tag = ", exact match" if d.get("emerging_sem") is not None else ""
+        part.append(subjects_table(
+            d, f"Emerging subjects — first seen in the last three sittings "
+               f"({len(d['emerging_exact'])}{tag})",
+            d["emerging_exact"], "questions"))
+        if d.get("emerging_sem") is not None:
+            part.append("<p>The semantic grouping found no new subject in the "
+                        "last three sittings for this department; the list "
+                        "above is the exact-match result.</p>")
     part.append(wfigure(f"ws-{slug}-volume"))
 
     part.append("<h3>3. What kind of answer is demanded</h3>")
@@ -903,6 +1017,27 @@ def main(argv=None) -> int:
     rows, extracted, overall, dept_summary, records, labels, order = load_all()
     flagged = flagged_by_department()
 
+    # Semantic recurrence (embeddings + verification gates) is the published
+    # primary; the exact-match lists computed inside profile() travel beside
+    # it. Missing files degrade to exact-only rather than failing the build.
+    sem_path = REPO / "output/layers/layer5_semantic.json"
+    sem = json.loads(sem_path.read_text(encoding="utf-8")) if sem_path.exists() else None
+    clu_path = REPO / "output/layers/semantic_clusters.json"
+    sem_clusters = (json.loads(clu_path.read_text(encoding="utf-8")).get("clusters", [])
+                    if clu_path.exists() else [])
+    gate_path = REPO / "data/cache/gate_verifications.json"
+    gate_counts = Counter()
+    if gate_path.exists():
+        for v in json.loads(gate_path.read_text(encoding="utf-8")).values():
+            gate_counts[v.get("verdict") or ("same" if v.get("same_issue") else "different")] += 1
+    if sem:
+        print(f"  semantic layer: {sem['n_families']} families "
+              f"({sem['embed_model']}, {sem['embed_dims']}d), "
+              f"{len(sem.get('emerging_issues', []))} emerging, "
+              f"{sum(gate_counts.values())} gate decisions cached")
+    else:
+        print("  semantic layer not found - exact match only")
+
     totals = Counter(normalize_dept(r.get("Departments")) for r in rows)
     top_depts = [d for d, _c in totals.most_common(args.top)]
     sess_labels = {f"{a} {s}": s for a, s in order}
@@ -910,7 +1045,8 @@ def main(argv=None) -> int:
     profiles = []
     for dept in top_depts:
         d = profile(dept, rows, extracted, dept_summary, records, labels, order,
-                    flagged, overall)
+                    flagged, overall, sem=sem, sem_clusters=sem_clusters,
+                    gate_counts=gate_counts)
         d["sessions_full"] = [f"{a} {s}" for a, s in d["sessions"]]
         d["_label_map"] = {str(r.get("Asked_By") or "").strip(): labels.get(
             str(r.get("Asked_By") or "").strip(), str(r.get("Asked_By") or ""))

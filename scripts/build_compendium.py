@@ -438,7 +438,11 @@ def build():
     add("")
     add("- OCR accuracy is bounded (~0.94 per-field); low-confidence extractions "
         "carry provenance flags, not silent defaults")
-    add("- Exact-match recurrence under-merges paraphrases (documented choice)")
+    add("- Exact-match recurrence under-merges paraphrases (documented choice); a "
+        "semantic grouping is computed alongside it as a supplement, and both "
+        "counts are published side by side rather than one replacing the other. "
+        "Neither method can tell whether a department acted: both count what was "
+        "asked and what came back")
     add("- MLA-based geography assumes questions concern the asker's own seat")
     add("- Seat lookup is not assembly-aware: where two members held the same "
         "seat in different Assemblies (or are recorded under one seat in the "
